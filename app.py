@@ -1382,4 +1382,4 @@ st.markdown("""
     </div>
 </div>
 <div class="footer-copyright">© 2026 Audit Intelligence &middot; Internal tool &middot; Not for external distribution</div>
-""", unsafe_allow_html=Tru
+""", unsafe_allow_html=True)
