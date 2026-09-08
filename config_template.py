@@ -21,4 +21,4 @@ NEWSAPI_KEY = ""
 APITUBE_KEY = ""
 
 # https://newsdata.io/register
-NEWSDATA_KEY = ""
+NEWSDATA_KEY = "pub_2a0098094c1a4adb- ba22d0a71770195e"
