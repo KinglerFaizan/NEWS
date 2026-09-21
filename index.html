@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#08111f" />
+  <title>Audit Intelligence | Global Banking Briefing</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
+    :root{--bg:#f5f7fb;--ink:#0b1220;--muted:#667085;--line:#e4e8ef;--card:#fff;--blue:#2563eb;--purple:#7c3aed;--green:#16a34a;--shadow:0 12px 34px rgba(15,23,42,.07)}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif}a{color:inherit;text-decoration:none}
+    .shell{max-width:1480px;margin:auto;padding:22px 30px 44px}.nav{display:flex;justify-content:space-between;align-items:center;padding-bottom:18px;border-bottom:1px solid var(--line);gap:20px}
+    .brand{display:flex;gap:14px;align-items:center}.logo{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;color:#fff;font-size:22px;font-weight:900;background:radial-gradient(circle at 25% 15%,#60a5fa,#2563eb 48%,#111c36);box-shadow:0 10px 24px rgba(37,99,235,.28)}
+    .brand-title{font-size:27px;font-weight:900;letter-spacing:-1px}.brand-title span{background:linear-gradient(90deg,#2563eb,#7c3aed);background-clip:text;-webkit-background-clip:text;color:transparent}.brand-sub{font-size:10px;color:var(--muted);letter-spacing:1.8px;text-transform:uppercase;margin-top:4px}
+    .live{display:flex;align-items:center;gap:8px;border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;padding:8px 12px;border-radius:999px;font:700 10px JetBrains Mono;letter-spacing:.8px}.dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 5px #dcfce7}
+    .hero{margin:22px 0 20px;padding:30px 32px;border-radius:22px;color:#fff;position:relative;overflow:hidden;background:radial-gradient(circle at 90% 12%,rgba(124,58,237,.4),transparent 29%),radial-gradient(circle at 65% 100%,rgba(37,99,235,.35),transparent 34%),linear-gradient(135deg,#07101d,#12203c 58%,#182f62);box-shadow:0 18px 42px rgba(7,16,29,.17)}
+    .hero:after{content:"";position:absolute;width:300px;height:300px;right:-120px;bottom:-170px;border:1px solid rgba(255,255,255,.13);border-radius:50%;box-shadow:0 0 0 45px rgba(255,255,255,.025),0 0 0 90px rgba(255,255,255,.02)}
+    .kicker{color:#93c5fd;font:800 10px JetBrains Mono;letter-spacing:1.8px;text-transform:uppercase}.hero h1{font-size:clamp(28px,3vw,46px);line-height:1.02;letter-spacing:-2px;margin:8px 0 10px;max-width:850px}.hero p{margin:0;color:#cbd5e1;max-width:800px;line-height:1.55;font-size:13px}.stats{display:flex;gap:9px;margin-top:20px;position:relative;z-index:2}.stat{min-width:105px;padding:10px 13px;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.07);border-radius:12px}.stat b{display:block;font-size:20px}.stat span{display:block;margin-top:4px;color:#94a3b8;font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:800}
+    .toolbar{display:flex;gap:10px;align-items:center;margin:0 0 25px;flex-wrap:wrap}.search{flex:1;min-width:230px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 15px;font:500 13px Inter;outline:none}.search:focus{border-color:#93c5fd;box-shadow:0 0 0 4px #dbeafe}.btn{border:1px solid var(--line);background:#fff;padding:11px 15px;border-radius:11px;font:800 11px Inter;cursor:pointer}.btn:hover{border-color:#93c5fd;color:var(--blue)}.status{font:600 10px JetBrains Mono;color:var(--muted);padding:0 4px}
+    .category{margin:0 0 31px}.cat-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}.accent{width:4px;height:24px;border-radius:5px}.cat-name{font-size:18px;font-weight:900;letter-spacing:-.4px}.count{font:700 10px JetBrains Mono;color:var(--muted);background:#eef1f5;border-radius:999px;padding:5px 8px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.card{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;min-width:0;box-shadow:0 2px 8px rgba(15,23,42,.03);transition:.18s}.card:hover{transform:translateY(-3px);box-shadow:0 16px 32px rgba(15,23,42,.10);border-color:#cbd5e1}
+    .media{height:185px;background:#e9eef5;overflow:hidden;display:block}.media img{width:100%;height:100%;object-fit:cover;display:block;transition:.3s}.card:hover .media img{transform:scale(1.04)}
+    .body{padding:15px 16px 14px;min-height:185px;display:flex;flex-direction:column}.meta{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:9px}.pill{color:#fff;border-radius:5px;padding:4px 8px;font:800 9px Inter;letter-spacing:.5px;text-transform:uppercase}.time{font-size:10px;color:var(--muted);font-weight:700}
+    .title{font-size:16px;font-weight:850;line-height:1.3;letter-spacing:-.25px}.card:hover .title{color:var(--blue)}.desc{font-size:12.5px;line-height:1.5;color:#596579;margin-top:7px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.foot{margin-top:auto;padding-top:12px;display:flex;justify-content:space-between;gap:10px;align-items:center}.source{font-size:10px;color:#7a8494;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.read{font-size:11px;color:var(--blue);font-weight:900;white-space:nowrap}
+    .empty,.error{background:#fff;border:1px solid var(--line);border-radius:16px;padding:30px;text-align:center;color:var(--muted)}.error{border-color:#fecaca;color:#b91c1c}.footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;color:#7b8493;font-size:10px;gap:20px}.mono{font-family:JetBrains Mono}
+    @media(max-width:850px){.shell{padding:15px}.nav{align-items:flex-start}.live{display:none}.grid{grid-template-columns:1fr}.hero{padding:23px}.hero h1{letter-spacing:-1.2px}.footer{flex-direction:column}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <nav class="nav">
+    <div class="brand"><div class="logo">AI</div><div><div class="brand-title">Audit <span>Intelligence</span></div><div class="brand-sub">Global Banking Risk &amp; Controls Briefing</div></div></div>
+    <div class="live"><i class="dot"></i> LIVE INTELLIGENCE</div>
+  </nav>
+  <section class="hero">
+    <div class="kicker">Executive intelligence layer</div>
+    <h1>Global Banking Risk &amp; Controls Briefing</h1>
+    <p>Fresh intelligence across transformation, regulation, people and global banking — organized for rapid executive review.</p>
+    <div class="stats"><div class="stat"><b id="total">—</b><span>Stories</span></div><div class="stat"><b id="sources">—</b><span>Sources</span></div><div class="stat"><b>4</b><span>Themes</span></div></div>
+  </section>
+  <div class="toolbar"><input id="search" class="search" placeholder="Search headlines, sources or topics…" /><button id="refresh" class="btn">↻ Refresh intelligence</button><span id="status" class="status">Connecting…</span></div>
+  <main id="content"></main>
+  <footer class="footer"><span>Audit Intelligence · Internal briefing interface</span><span class="mono" id="updated">Awaiting feed</span></footer>
+</div>
+<script>
+const COLORS={"Transformation":"#2563eb","Regulation":"#16a34a","People":"#64748b","Global Banks":"#7c3aed"};
+const FALLBACK="data:image/svg+xml;charset=UTF-8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="900" height="500"><defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#0b1220"/><stop offset="1" stop-color="#2563eb"/></linearGradient></defs><rect width="900" height="500" fill="url(#g)"/><circle cx="740" cy="80" r="180" fill="none" stroke="white" stroke-opacity=".12" stroke-width="2"/><text x="55" y="270" fill="white" fill-opacity=".9" font-family="Arial" font-size="34" font-weight="700">AUDIT INTELLIGENCE</text></svg>');
+let allArticles=[];
+function relativeTime(date){const d=new Date(date);if(Number.isNaN(d.getTime()))return "";const mins=Math.max(0,Math.floor((Date.now()-d.getTime())/60000));if(mins<60)return mins+"m ago";const h=Math.floor(mins/60);if(h<24)return h+"h ago";return Math.floor(h/24)+"d ago"}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function render(){
+  const q=document.getElementById("search").value.toLowerCase().trim();
+  const filtered=allArticles.filter(a=>!q||[a.title,a.description,a.source,a.category].join(" ").toLowerCase().includes(q));
+  document.getElementById("total").textContent=filtered.length;
+  const grouped={};for(const a of filtered)(grouped[a.category]??=[]).push(a);
+  document.getElementById("content").innerHTML=["Transformation","Regulation","People","Global Banks"].map(cat=>{
+    const rows=grouped[cat]||[];
+    if(!rows.length)return "";
+    return '<section class="category"><div class="cat-head"><span class="accent" style="background:'+COLORS[cat]+'"></span><span class="cat-name">'+cat+'</span><span class="count">'+String(rows.length).padStart(2,"0")+' stories</span></div><div class="grid">'+rows.map(a=>{
+      const img=esc(a.image||FALLBACK),url=esc(a.url||"#");
+      return '<article class="card"><a class="media" href="'+url+'" target="_blank" rel="noopener"><img loading="lazy" src="'+img+'" onerror="this.onerror=null;this.src=\''+FALLBACK+'\'" alt=""></a><div class="body"><div class="meta"><span class="pill" style="background:'+COLORS[a.category]+'">'+esc(a.category)+'</span><span class="time">'+relativeTime(a.publishedAt)+'</span></div><a href="'+url+'" target="_blank" rel="noopener"><div class="title">'+esc(a.title)+'</div></a><div class="desc">'+esc(a.description)+'</div><div class="foot"><span class="source">'+esc(a.source)+'</span><a class="read" href="'+url+'" target="_blank" rel="noopener">Read source ↗</a></div></div></article>';
+    }).join("")+'</div></section>';
+  }).join("");
+  if(!filtered.length)document.getElementById("content").innerHTML='<div class="empty">No stories match the current search.</div>';
+}
+async function loadNews(force=false){
+  const status=document.getElementById("status");status.textContent=force?"Refreshing…":"Connecting…";
+  try{
+    const r=await fetch("/api/news?ts="+(force?Date.now():""));const data=await r.json();if(!data.ok)throw new Error(data.error||"Feed unavailable");
+    allArticles=data.articles||[];document.getElementById("sources").textContent=data.sources??"—";document.getElementById("updated").textContent="Updated "+new Date(data.fetchedAt).toLocaleString();status.textContent=(data.cached?"Cached":"Live")+" · NewsData.io";render();
+  }catch(e){document.getElementById("content").innerHTML='<div class="error"><b>Feed unavailable</b><br><br>'+esc(e.message)+'</div>';status.textContent="Configuration required"}
+}
+document.getElementById("search").addEventListener("input",render);document.getElementById("refresh").addEventListener("click",()=>loadNews(true));loadNews();
+</script>
+</body>
+</html>
