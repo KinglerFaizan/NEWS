@@ -678,6 +678,13 @@ RISK_THEMES = {
 }
 
 
+def ist_now_str():
+    """Return the current Indian Standard Time for the dashboard header."""
+    from datetime import datetime, timezone, timedelta
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(ist).strftime("%d %b %Y · %H:%M IST")
+
+
 # ---------------------------------------------------------
 # 3. KEY RESOLUTION & SCORING
 # ---------------------------------------------------------
