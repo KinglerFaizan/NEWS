@@ -24,22 +24,52 @@ import news_providers as npv
 
 # Server-side NewsData.io credential only. Never render this value in the UI.
 def get_newdata_api_key():
-    """Resolve the NewsData.io key from environment variables or Streamlit Secrets."""
-    for name in ("NEWSDATA_API_KEY", "NEWSDATA_KEY"):
-        value = os.getenv(name, "")
+    """Resolve NewsData.io from root-level Streamlit Secrets or environment variables."""
+    names = ("NEWSDATA_API_KEY", "NEWSDATA_KEY")
+
+    for name in names:
+        value = os.environ.get(name)
         if value and value.strip():
             return value.strip()
 
     try:
-        for name in ("NEWSDATA_API_KEY", "NEWSDATA_KEY"):
-            value = st.secrets.get(name, "")
-            if value and str(value).strip():
+        for name in names:
+            try:
+                value = st.secrets[name]
+            except KeyError:
+                value = ""
+            if value is not None and str(value).strip():
                 return str(value).strip()
     except Exception:
-        # Streamlit raises here when Secrets are unavailable or malformed.
         pass
 
     return ""
+
+
+def secret_diagnostics():
+    """Return safe secret-state diagnostics; never return a secret value."""
+    env_present = any(
+        bool(os.environ.get(name, "").strip())
+        for name in ("NEWSDATA_API_KEY", "NEWSDATA_KEY")
+    )
+
+    secret_keys = []
+    secrets_available = False
+    try:
+        secret_keys = [str(k) for k in st.secrets.keys()]
+        secrets_available = True
+    except Exception:
+        pass
+
+    normalized = {
+        key.strip().upper().replace("-", "_"): key
+        for key in secret_keys
+    }
+    named_secret_present = any(
+        name in normalized for name in ("NEWSDATA_API_KEY", "NEWSDATA_KEY")
+    )
+
+    return secrets_available, env_present, named_secret_present, secret_keys
 
 
 
@@ -1132,11 +1162,18 @@ with st.expander("⚙️  Data Sources, Filters & Controls", expanded=False):
     )
 
 if not api_keys.get("newsdata"):
-    st.error(
-        "NewsData.io key was not detected by the running app. "
-        "Open Streamlit → Settings → Secrets and verify the exact key name "
-        "NEWSDATA_API_KEY, then Save and Reboot the app."
-    )
+    secrets_available, env_present, named_secret_present, secret_keys = secret_diagnostics()
+    st.error("NewsData.io key is not reaching this running Streamlit instance.")
+    with st.expander("🔧 Secret diagnostics", expanded=True):
+        st.write(f"Streamlit Secrets available: **{'Yes' if secrets_available else 'No'}**")
+        st.write(f"Environment variable detected: **{'Yes' if env_present else 'No'}**")
+        st.write(f"NEWSDATA_API_KEY found in Secrets: **{'Yes' if named_secret_present else 'No'}**")
+        if secrets_available:
+            st.write("Secret names visible to the app:", ", ".join(secret_keys) or "none")
+        st.caption(
+            "The API key value itself is never displayed. A root-level secret named "
+            "NEWSDATA_API_KEY should appear above."
+        )
     st.stop()
 
 
@@ -1151,7 +1188,7 @@ params_key = (lookback_days, min_relevance, fuzzy_threshold,
 if ("news_loaded" not in st.session_state) or (st.session_state.get("params_key") != params_key):
     with st.spinner("Compiling the audit intelligence briefing..."):
         articles, errors, stats = load_news(
-            api_keys["newsdata"],
+            {"newsdata": api_keys["newsdata"]},
             lookback_days,
             min_relevance,
             fuzzy_threshold,
