@@ -24,13 +24,22 @@ import news_providers as npv
 
 # Server-side NewsData.io credential only. Never render this value in the UI.
 def get_newdata_api_key():
-    key = os.getenv("NEWSDATA_API_KEY") or os.getenv("NEWSDATA_KEY")
-    if not key:
-        try:
-            key = st.secrets.get("NEWSDATA_API_KEY") or st.secrets.get("NEWSDATA_KEY")
-        except Exception:
-            key = None
-    return (key or "").strip()
+    """Resolve the NewsData.io key from environment variables or Streamlit Secrets."""
+    for name in ("NEWSDATA_API_KEY", "NEWSDATA_KEY"):
+        value = os.getenv(name, "")
+        if value and value.strip():
+            return value.strip()
+
+    try:
+        for name in ("NEWSDATA_API_KEY", "NEWSDATA_KEY"):
+            value = st.secrets.get(name, "")
+            if value and str(value).strip():
+                return str(value).strip()
+    except Exception:
+        # Streamlit raises here when Secrets are unavailable or malformed.
+        pass
+
+    return ""
 
 
 
@@ -1122,10 +1131,11 @@ with st.expander("⚙️  Data Sources, Filters & Controls", expanded=False):
         format_func=lambda c: CATEGORY_DISPLAY.get(c, c),
     )
 
-if not any(api_keys.values()):
-    st.info(
-        "💡 NewsData.io is configured server-side. "
-        "Refresh the briefing to load the latest stories."
+if not api_keys.get("newsdata"):
+    st.error(
+        "NewsData.io key was not detected by the running app. "
+        "Open Streamlit → Settings → Secrets and verify the exact key name "
+        "NEWSDATA_API_KEY, then Save and Reboot the app."
     )
     st.stop()
 
@@ -1134,14 +1144,14 @@ if not any(api_keys.values()):
 # 9. DATA INGESTION & FILTERING
 # ---------------------------------------------------------
 
-active_keys = tuple(sorted((p, k) for p, k in api_keys.items() if k))
+active_keys = tuple(sorted((p, bool(k)) for p, k in api_keys.items()))
 params_key = (lookback_days, min_relevance, fuzzy_threshold,
               tuple(sorted(selected_categories)), active_keys)
 
 if ("news_loaded" not in st.session_state) or (st.session_state.get("params_key") != params_key):
     with st.spinner("Compiling the audit intelligence briefing..."):
         articles, errors, stats = load_news(
-            tuple(sorted(api_keys.items())),
+            api_keys["newsdata"],
             lookback_days,
             min_relevance,
             fuzzy_threshold,
