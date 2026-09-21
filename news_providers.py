@@ -70,20 +70,31 @@ def _is_quota_error(message: str, status_code=None) -> bool:
 QUERIES_NEWSDATA = {
     "Transformation": [
         'bank AND ("digital transformation" OR "core banking")',
-        'banking AND ("artificial intelligence" OR cloud OR automation)',
+        'banking AND ("artificial intelligence" OR "generative AI" OR automation)',
+        'bank AND (cloud OR "digital banking" OR fintech)',
+        'bank AND ("technology modernization" OR "data analytics")',
+        'bank AND ("cybersecurity" OR "operational resilience")',
     ],
     "Regulation": [
         'bank AND (regulation OR compliance OR supervision)',
-        'RBI AND (penalty OR guidelines OR circular)',
-        'bank AND ("money laundering" OR AML OR KYC OR fraud)',
+        'bank AND (penalty OR fine OR enforcement OR sanctions)',
+        'bank AND ("money laundering" OR AML OR KYC)',
+        'bank AND (fraud OR "financial crime" OR misconduct)',
+        'RBI AND (bank OR banking) AND (guidelines OR circular OR penalty)',
+        'bank AND ("capital requirements" OR "risk management")',
     ],
     "People": [
-        'bank AND ("chief risk officer" OR "audit committee")',
-        'bank AND (appointed OR resigns OR board)',
+        'bank AND ("chief risk officer" OR "chief audit executive")',
+        'bank AND ("audit committee" OR "internal audit")',
+        'bank AND (appointed OR resigns OR "new CEO" OR board)',
+        'bank AND ("chief compliance officer" OR "risk officer")',
     ],
     "Global Banks": [
         'HSBC OR JPMorgan OR Citigroup OR Barclays',
         'UBS OR "Deutsche Bank" OR "Goldman Sachs" OR "Standard Chartered"',
+        'Bank of America OR Wells Fargo OR Morgan Stanley',
+        'BNP Paribas OR Santander OR ING OR "Credit Suisse"',
+        'bank AND (global OR international) AND (risk OR compliance)',
     ],
 }
 PROVIDER_QUERIES = {"newsdata": QUERIES_NEWSDATA}
