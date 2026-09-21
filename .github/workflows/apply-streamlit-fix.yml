@@ -22,6 +22,7 @@ jobs:
           s = p.read_text(encoding="utf-8")
           s = s.replace('st.success("NewsData.io connected", icon="✓")', 'st.success("NewsData.io connected")')
           s = s.replace('st.warning("NewsData.io API key is not configured on the server.", icon="⚠️")', 'st.warning("NewsData.io API key is not configured on the server.")')
+          s = s.replace('articles, errors, stats = load_news(\n            {"newsdata": api_keys["newsdata"]},', 'articles, errors, stats = load_news(\n            api_keys["newsdata"],')
           p.write_text(s, encoding="utf-8")
           PY
 
