@@ -11,6 +11,7 @@ variables, Streamlit secrets, or the in-page fields.
 """
 
 import os
+from html import escape
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -367,56 +368,127 @@ st.markdown("""
     .featured-meta { font-size: 13px; color: rgba(255,255,255,0.85); font-weight: 500; }
     .featured-link-overlay { position: absolute; inset: 0; z-index: 3; }
 
-    /* ---------------- Insight cards ---------------- */
-    .insight-card {
-        display: flex;
-        gap: 20px;
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 16px;
-        margin-bottom: 16px;
-        transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    /* ---------------- Category newsroom grid ---------------- */
+    .briefing-hero {
+        position: relative;
+        overflow: hidden;
+        border-radius: 20px;
+        padding: 26px 30px;
+        margin: 4px 0 22px 0;
+        background:
+            radial-gradient(circle at 88% 20%, rgba(124,58,237,.32), transparent 30%),
+            radial-gradient(circle at 68% 100%, rgba(37,99,235,.28), transparent 34%),
+            linear-gradient(135deg, #0B1220 0%, #111C36 52%, #182A55 100%);
+        color: #fff;
+        box-shadow: 0 16px 40px rgba(11,18,32,.16);
     }
-    .insight-card:hover { border-color: #D1D5DB; box-shadow: 0 4px 14px rgba(0,0,0,0.05); }
+    .briefing-kicker {
+        display:flex; align-items:center; gap:9px;
+        font-size:10px; font-weight:800; letter-spacing:1.7px;
+        text-transform:uppercase; color:#93C5FD; margin-bottom:7px;
+    }
+    .briefing-kicker-dot {
+        width:7px; height:7px; border-radius:50%; background:#22C55E;
+        box-shadow:0 0 0 5px rgba(34,197,94,.12);
+    }
+    .briefing-title {
+        font-size:29px; line-height:1.08; font-weight:900;
+        letter-spacing:-1px; margin:0 0 7px 0;
+    }
+    .briefing-subtitle {
+        color:rgba(255,255,255,.70); font-size:12.5px;
+        max-width:700px; line-height:1.5;
+    }
+    .briefing-stats {
+        position:absolute; right:28px; top:24px;
+        display:flex; gap:10px;
+    }
+    .brief-stat {
+        min-width:86px; padding:10px 13px; text-align:center;
+        border:1px solid rgba(255,255,255,.13); border-radius:12px;
+        background:rgba(255,255,255,.07); backdrop-filter:blur(8px);
+    }
+    .brief-stat-number { font-size:19px; font-weight:900; line-height:1; }
+    .brief-stat-label { margin-top:5px; font-size:9px; text-transform:uppercase;
+        letter-spacing:.7px; color:rgba(255,255,255,.58); font-weight:700; }
 
-    /* Thumbnails are real <img> elements (not CSS backgrounds) so that a
-       broken/hotlink-blocked remote image still paints the element's OWN
-       background — i.e. the newspaper placeholder shows through automatically. */
-    .insight-thumb {
-        width: 180px; min-width: 180px; height: 128px;
-        border-radius: 10px;
-        object-fit: cover;
-        background-color: #EEF2F7;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: 52px 52px;
-        border: 1px solid var(--border);
-        display: block;
+    .category-section { margin: 0 0 28px 0; }
+    .category-heading {
+        display:flex; align-items:center; justify-content:space-between;
+        margin:0 0 11px 0; padding-bottom:9px;
+        border-bottom:1px solid var(--border);
     }
-    .insight-content { display: flex; flex-direction: column; min-width: 0; }
-    .insight-meta-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .category-heading-left { display:flex; align-items:center; gap:10px; }
+    .category-accent {
+        width:4px; height:24px; border-radius:99px; flex-shrink:0;
+    }
+    .category-name { font-size:17px; font-weight:850; color:#0B1220; letter-spacing:-.3px; }
+    .category-count {
+        font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700;
+        color:var(--text-muted); background:#F3F4F6; border-radius:999px; padding:4px 8px;
+    }
+    .category-grid {
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:14px;
+    }
+    .category-card {
+        position:relative; min-width:0; overflow:hidden;
+        display:flex; flex-direction:column;
+        background:#fff; border:1px solid var(--border); border-radius:15px;
+        box-shadow:0 2px 7px rgba(11,18,32,.035);
+        transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+    .category-card:hover {
+        transform:translateY(-2px);
+        border-color:#CBD5E1;
+        box-shadow:0 12px 28px rgba(11,18,32,.09);
+    }
+    .category-card:last-child:nth-child(odd) { grid-column:1 / -1; }
+    .category-card-image-wrap {
+        position:relative; width:100%; height:170px; overflow:hidden; background:#EEF2F7;
+    }
+    .category-card-image {
+        width:100%; height:100%; display:block; object-fit:cover;
+        transition:transform .35s ease;
+    }
+    .category-card:hover .category-card-image { transform:scale(1.035); }
+    .category-card-image-wrap::after {
+        content:""; position:absolute; inset:0;
+        background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(0,0,0,.20));
+        pointer-events:none;
+    }
+    .category-card-body { padding:14px 15px 13px; display:flex; flex-direction:column; min-height:174px; }
+    .category-card-meta { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
     .badge {
-        display: inline-block; color: #fff; font-size: 10.5px; font-weight: 700;
-        padding: 3px 10px; border-radius: 5px; text-transform: uppercase; letter-spacing: 0.4px;
+        display:inline-block; color:#fff; font-size:9.5px; font-weight:800;
+        padding:4px 9px; border-radius:5px; text-transform:uppercase; letter-spacing:.5px;
     }
-    .insight-date { font-size: 12px; color: var(--text-muted); font-weight: 500; }
-    .insight-title-link { text-decoration: none; }
-    .insight-title {
-        font-size: 17px; font-weight: 700; color: #0B1220;
-        line-height: 1.35; margin-bottom: 6px;
+    .insight-date { font-size:10.5px; color:var(--text-muted); font-weight:600; }
+    .category-card-title {
+        font-size:16px; font-weight:800; color:#0B1220; line-height:1.3;
+        letter-spacing:-.2px; margin:0 0 7px;
     }
-    .insight-title-link:hover .insight-title { color: var(--accent-blue); }
-    .insight-desc {
-        font-size: 13.5px; color: var(--text-secondary); line-height: 1.55;
-        margin-bottom: 12px;
-        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    .category-card-title-link { text-decoration:none; }
+    .category-card-title-link:hover .category-card-title { color:var(--accent-blue); }
+    .category-card-desc {
+        font-size:12.5px; color:var(--text-secondary); line-height:1.5;
+        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
     }
-    .insight-footer { display: flex; justify-content: flex-end; align-items: center; margin-top: auto; }
-    .read-link {
-        font-size: 12.5px; font-weight: 700; color: var(--accent-blue); text-decoration: none;
+    .category-card-footer {
+        display:flex; justify-content:space-between; align-items:center;
+        margin-top:auto; padding-top:11px;
     }
-    .read-link:hover { text-decoration: underline; }
+    .source-chip { font-size:10px; color:var(--text-muted); font-weight:650; overflow:hidden;
+        text-overflow:ellipsis; white-space:nowrap; max-width:55%; }
+    .read-link { font-size:11.5px; font-weight:800; color:var(--accent-blue); text-decoration:none; }
+    .read-link:hover { text-decoration:underline; }
+
+    @media (max-width: 900px) {
+        .briefing-stats { position:static; margin-top:18px; }
+        .category-grid { grid-template-columns:1fr; }
+        .category-card:last-child:nth-child(odd) { grid-column:auto; }
+    }
 
     /* ---------------- Right sidebar panels ---------------- */
     .side-panel {
@@ -1043,11 +1115,18 @@ with st.expander("🔎 Ingestion Diagnostics", expanded=False):
 # 10. PAGE TITLE
 # ---------------------------------------------------------
 
-st.markdown('<div class="page-title">This week\'s briefing</div>', unsafe_allow_html=True)
-st.markdown(
-    f'<div class="page-subtitle">{len(filtered)} items &nbsp;·&nbsp; verified banking internal controls &amp; regulatory surveillance</div>',
-    unsafe_allow_html=True,
-)
+st.markdown(f"""
+<div class="briefing-hero">
+    <div class="briefing-kicker"><span class="briefing-kicker-dot"></span> Live Audit Intelligence</div>
+    <div class="briefing-title">Global Banking Risk &amp; Controls Briefing</div>
+    <div class="briefing-subtitle">Fresh intelligence across transformation, regulation, people and global banking — organized for rapid executive review.</div>
+    <div class="briefing-stats">
+        <div class="brief-stat"><div class="brief-stat-number">{len(filtered)}</div><div class="brief-stat-label">Stories</div></div>
+        <div class="brief-stat"><div class="brief-stat-number">{len(set(a["source"] for a in filtered)) if filtered else 0}</div><div class="brief-stat-label">Sources</div></div>
+        <div class="brief-stat"><div class="brief-stat-number">4</div><div class="brief-stat-label">Themes</div></div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------
@@ -1076,89 +1155,96 @@ def render_featured(article):
     """, unsafe_allow_html=True)
 
 
-def render_insight_card(article):
-    color = CATEGORY_COLORS.get(article["category"], "#374151")
-    label = CATEGORY_DISPLAY.get(article["category"], article["category"])
-    rel_time = format_relative_time(article["publishedAt"])
-    description_text = article["description"] or "Independent institutional briefing coverage. Select below to review the full verified source documentation."
-
-    # Category-tinted newspaper placeholder, painted as the <img>'s own background.
-    # If the remote image is missing, dead, or hotlink-blocked (403), the browser
-    # discards the src and this placeholder remains visible — no more blank boxes.
-    fallback = placeholder_data_uri(color)
-    # An empty src="" makes some browsers re-request the page, so omit it entirely.
-    src_attr = f'src="{article["image_url"]}" ' if article["image_url"] else ""
-
-    thumb_html = (
-        f'<img class="insight-thumb" {src_attr}alt="" loading="lazy" '
-        f'referrerpolicy="no-referrer" '
-        f'style="background-image: url(&quot;{fallback}&quot;);" '
-        f'onerror="this.onerror=null; this.removeAttribute(\'src\');" />'
-    )
-
-    st.markdown(f"""
-    <div class="insight-card">
-        {thumb_html}
-        <div class="insight-content">
-            <div class="insight-meta-row">
-                <span class="badge" style="background: {color};">{label}</span>
-                <span class="insight-date">{rel_time}</span>
-            </div>
-            <a href="{article['url']}" target="_blank" class="insight-title-link">
-                <div class="insight-title">{article['title']}</div>
-            </a>
-            <div class="insight-desc">{description_text}</div>
-            <div class="insight-footer">
-                <a href="{article['url']}" target="_blank" class="read-link">Read source ↗</a>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def render_feed(rows, show_featured=True):
+def render_category_grid(category, rows):
+    """Render one category as a dense, responsive two-card-per-row newsroom grid."""
     if not rows:
-        st.markdown("""
-        <div class="empty-state-panel">
-            <div style="font-size: 18px; font-weight: 700; color: #111827;">No briefing stories found</div>
-            <div style="font-size: 13.5px; color: #4B5563; margin-top: 6px;">Try expanding the lookback window or lowering the relevance floor above.</div>
-        </div>
-        """, unsafe_allow_html=True)
         return
 
-    if show_featured:
-        st.markdown('<div class="section-heading">Featured Analysis</div>', unsafe_allow_html=True)
-        render_featured(rows[0])
-        rest = rows[1:]
-    else:
-        rest = rows
+    color = CATEGORY_COLORS.get(category, "#2563EB")
+    label = CATEGORY_DISPLAY.get(category, category)
 
-    if rest:
-        st.markdown('<div class="section-heading">Latest Insights</div>', unsafe_allow_html=True)
-        for art in rest:
-            render_insight_card(art)
+    cards = []
+    for article in rows:
+        title = escape(str(article.get("title") or "Untitled story"))
+        description = escape(str(article.get("description") or "Independent institutional briefing coverage."))
+        source = escape(str(article.get("source") or "Unknown source"))
+        url = escape(str(article.get("url") or "#"), quote=True)
+        rel_time = escape(str(format_relative_time(article.get("publishedAt", ""))))
+        image_url = escape(str(article.get("image_url") or ""), quote=True)
+        fallback = placeholder_data_uri(color)
+
+        if image_url:
+            image = (
+                f'<img class="category-card-image" src="{image_url}" alt="" '
+                f'loading="lazy" referrerpolicy="no-referrer" '
+                f'onerror="this.onerror=null;this.src=\'{fallback}\';" />'
+            )
+        else:
+            image = f'<img class="category-card-image" src="{fallback}" alt="" />'
+
+        cards.append(f"""
+        <article class="category-card">
+            <a href="{url}" target="_blank" rel="noopener noreferrer" class="category-card-image-wrap">
+                {image}
+            </a>
+            <div class="category-card-body">
+                <div class="category-card-meta">
+                    <span class="badge" style="background:{color};">{escape(label)}</span>
+                    <span class="insight-date">{rel_time}</span>
+                </div>
+                <a href="{url}" target="_blank" rel="noopener noreferrer" class="category-card-title-link">
+                    <div class="category-card-title">{title}</div>
+                </a>
+                <div class="category-card-desc">{description}</div>
+                <div class="category-card-footer">
+                    <span class="source-chip">{source}</span>
+                    <a href="{url}" target="_blank" rel="noopener noreferrer" class="read-link">Read source ↗</a>
+                </div>
+            </div>
+        </article>
+        """)
+
+    st.markdown(f"""
+    <section class="category-section">
+        <div class="category-heading">
+            <div class="category-heading-left">
+                <span class="category-accent" style="background:{color};"></span>
+                <span class="category-name">{escape(label)}</span>
+                <span class="category-count">{len(rows):02d} stories</span>
+            </div>
+        </div>
+        <div class="category-grid">
+            {''.join(cards)}
+        </div>
+    </section>
+    """, unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------
 # 12. MAIN LAYOUT
 # ---------------------------------------------------------
+# The feed is intentionally category-first: no tabs and no long single-column
+# stream. Each theme gets its own section and stories are displayed two-up.
 
 col_main, col_side = st.columns([2.3, 1], gap="large")
 
 with col_main:
     if not filtered:
-        render_feed(filtered)
+        st.markdown("""
+        <div class="empty-state-panel">
+            <div style="font-size:18px;font-weight:800;color:#111827;">No briefing stories found</div>
+            <div style="font-size:13.5px;color:#4B5563;margin-top:6px;">
+                Try expanding the lookback window or lowering the relevance floor above.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        tab_labels = ["All Insights"] + [CATEGORY_DISPLAY.get(c, c) for c in selected_categories]
-        tabs = st.tabs(tab_labels)
-
-        with tabs[0]:
-            render_feed(filtered, show_featured=True)
-
-        for tab, category in zip(tabs[1:], selected_categories):
-            with tab:
-                cat_rows = [a for a in filtered if a["category"] == category]
-                render_feed(cat_rows, show_featured=False)
+        # Preserve the four editorial categories and never mix their stories.
+        # This makes the landing page immediately scannable.
+        for category in selected_categories:
+            category_rows = [a for a in filtered if a["category"] == category]
+            category_rows.sort(key=lambda x: x.get("publishedAt", ""), reverse=True)
+            render_category_grid(category, category_rows)
 
 with col_side:
     render_market_panel()
@@ -1210,7 +1296,6 @@ with col_side:
         )
 
 
-# ---------------------------------------------------------
 # 13. FOOTER
 # ---------------------------------------------------------
 
