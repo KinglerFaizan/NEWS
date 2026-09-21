@@ -1015,8 +1015,8 @@ with st.expander("⚙️  Data Sources, Filters & Controls", expanded=False):
 
 if not any(api_keys.values()):
     st.info(
-        "💡 Add at least one provider key above to load the briefing. "
-        "Supplying all three (NewsData.io) gives the widest coverage."
+        "💡 NewsData.io is configured server-side. "
+        "Refresh the briefing to load the latest stories."
     )
     st.stop()
 
@@ -1101,9 +1101,7 @@ with st.expander("🔎 Ingestion Diagnostics", expanded=False):
 
         if stats.get("failover"):
             st.warning(
-                "Primary providers hit their limits this run — the reserve "
-                "provider supplied the briefing. Primaries resume automatically "
-                "once their quota resets.",
+                "NewsData.io reported a quota or request limit for this run.",
                 icon="⚠️",
             )
 
