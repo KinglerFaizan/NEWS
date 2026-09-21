@@ -1,139 +1,1309 @@
-"""Audit Intelligence — futuristic Streamlit executive newsroom."""
+"""
+audit_intel_app.py
+------------------
+Audit Intelligence — global banking risk & controls briefing.
+
+Run with:      streamlit run audit_intel_app.py
+
+Requires `news_providers.py` in the same folder.
+API keys go in config.py (rename config_template.py), environment
+variables, Streamlit secrets, or the in-page fields.
+"""
+
 import os
-from collections import Counter
-from datetime import datetime, timezone
 from html import escape
+from collections import Counter
+from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
+import requests
 import streamlit as st
+
 import news_providers as npv
 
-st.set_page_config(page_title="Audit Intelligence", page_icon="◈", layout="wide", initial_sidebar_state="collapsed")
+# Server-side NewsData.io credential only. Never render this value in the UI.
+def get_newdata_api_key():
+    key = os.getenv("NEWSDATA_API_KEY") or os.getenv("NEWSDATA_KEY")
+    if not key:
+        try:
+            key = st.secrets.get("NEWSDATA_API_KEY") or st.secrets.get("NEWSDATA_KEY")
+        except Exception:
+            key = None
+    return (key or "").strip()
+
+
+
+# ---------------------------------------------------------
+# 1. APP CONFIGURATION & LIGHT EDITORIAL PALETTE
+# ---------------------------------------------------------
+
+st.set_page_config(
+    page_title="Audit Intelligence | Global Banking Briefing",
+    page_icon="📡",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
-:root{--bg:#07120f;--panel:#0d1d18;--line:rgba(218,255,239,.11);--ink:#f2faf6;--muted:#8fa79f;--acid:#c7ff4a;--mint:#76f7c5;--cyan:#70d8ff}
-.stApp{background:radial-gradient(800px 420px at 80% -10%,rgba(95,170,130,.13),transparent 62%),var(--bg);color:var(--ink);font-family:'DM Sans',sans-serif}
-[data-testid="stHeader"]{background:transparent} footer,#MainMenu{visibility:hidden}.block-container{max-width:1500px;padding:28px 42px 55px}
-.ai-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:6px 0 22px}
-.brand{display:flex;gap:14px;align-items:center}.mark{width:48px;height:48px;border:1px solid rgba(199,255,74,.35);border-radius:14px;display:grid;place-items:center;background:#0d2119;box-shadow:0 0 25px rgba(199,255,74,.07)}
-.brand-name{font:700 22px 'Space Grotesk';letter-spacing:-.6px}.brand-sub,.status{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.7px;margin-top:3px}.status{display:flex;align-items:center;gap:8px;color:#b6cbc3}.dot{width:7px;height:7px;background:var(--acid);border-radius:50%;box-shadow:0 0 14px var(--acid)}
-.hero{position:relative;overflow:hidden;margin:24px 0 15px;padding:34px 38px;border:1px solid rgba(218,255,239,.15);border-radius:22px;background:linear-gradient(135deg,#0d241c,#08140f);box-shadow:0 25px 65px rgba(0,0,0,.22)}
-.hero:after{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(199,255,74,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(199,255,74,.025) 1px,transparent 1px);background-size:34px 34px}
-.kicker{position:relative;color:var(--acid);font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase}.title{position:relative;margin-top:10px;max-width:900px;font:600 clamp(36px,5vw,64px)/.98 'Space Grotesk';letter-spacing:-3px}.title span{color:var(--acid)}.copy{position:relative;max-width:700px;color:#a7bbb3;font-size:12px;line-height:1.65;margin-top:14px}.chips{position:relative;display:flex;flex-wrap:wrap;gap:8px;margin-top:21px}.chip{padding:7px 10px;border:1px solid var(--line);border-radius:999px;color:#b5c8c0;font-size:9px;letter-spacing:.8px;text-transform:uppercase}.chip b{color:var(--ink)}
-.news-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.section{margin:28px 0 12px;display:flex;justify-content:space-between;align-items:end}.section-title{font:600 18px 'Space Grotesk';display:flex;gap:10px;align-items:center}.section-title:before{content:"";width:3px;height:21px;background:var(--acid);border-radius:3px;box-shadow:0 0 12px rgba(199,255,74,.25)}.count{font:10px 'Space Grotesk';color:#627a71;text-transform:uppercase;letter-spacing:1px}
-.card{min-width:0;display:grid;grid-template-columns:150px 1fr;gap:15px;padding:10px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,#10231c,#0a1814);transition:.18s}.card:hover{transform:translateY(-2px);border-color:rgba(199,255,74,.28);box-shadow:0 16px 34px rgba(0,0,0,.23)}.thumb{height:130px;overflow:hidden;border-radius:10px;background:#12251e}.thumb img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.82);transition:.3s}.card:hover .thumb img{transform:scale(1.04)}.body{min-width:0;display:flex;flex-direction:column}.meta{display:flex;justify-content:space-between;gap:8px;color:#607970;font-size:8px;text-transform:uppercase;letter-spacing:.9px}.tag{color:#d2e4dc}.headline{font:600 16px/1.25 'Space Grotesk';letter-spacing:-.3px;margin:8px 0 6px}.headline a{color:var(--ink);text-decoration:none}.headline a:hover{color:var(--acid)}.desc{color:#819a91;font-size:10.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.foot{display:flex;justify-content:space-between;gap:8px;margin-top:auto;padding-top:9px}.source{color:#a7bbb3;font-size:8.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.read{color:var(--acid);font-size:8.5px;font-weight:800;text-decoration:none;text-transform:uppercase;letter-spacing:.8px}
-.rail{border:1px solid var(--line);border-radius:15px;background:rgba(13,29,24,.8);padding:16px;margin-bottom:12px}.rail-title{font-size:9px;font-weight:700;color:#d8e8e2;text-transform:uppercase;letter-spacing:1.3px;margin-bottom:10px}.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(218,255,239,.06);font-size:10px}.row:last-child{border-bottom:0}.row span:first-child{color:#7e978e}.row b{font:700 12px 'Space Grotesk';color:#e4f1ec}.bar{height:4px;background:#193027;border-radius:5px;overflow:hidden;margin-top:4px}.fill{height:100%;background:linear-gradient(90deg,var(--mint),var(--acid))}
-[data-testid="stTextInput"] input{background:#0a1814!important;border:1px solid var(--line)!important;color:var(--ink)!important;border-radius:10px!important}[data-testid="stTextInput"] input:focus{border-color:rgba(199,255,74,.5)!important;box-shadow:0 0 0 2px rgba(199,255,74,.07)!important}
-.stButton>button{background:var(--acid)!important;color:#07120f!important;border:0!important;border-radius:10px!important;font-weight:800!important;min-height:40px}.stButton>button:hover{box-shadow:0 0 20px rgba(199,255,74,.14)}
-[data-testid="stExpander"]{background:#0a1814!important;border:1px solid var(--line)!important;border-radius:12px!important}.app-foot{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;color:#607970;font-size:8px;text-transform:uppercase;letter-spacing:1px}
-@media(max-width:1100px){.news-grid{grid-template-columns:1fr}.card{grid-template-columns:180px 1fr}}@media(max-width:700px){.block-container{padding:18px 15px 40px}.status{display:none}.hero{padding:26px 22px}.title{font-size:40px;letter-spacing:-2px}.card{grid-template-columns:1fr}.thumb{height:180px}.app-foot{display:block;line-height:2}}
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    :root {
+        --bg: #F7F8FA;
+        --card: #FFFFFF;
+        --border: #E5E7EB;
+        --text-primary: #111827;
+        --text-secondary: #4B5563;
+        --text-muted: #6B7280;
+        --accent-blue: #2563EB;
+        --accent-blue-dark: #1D4ED8;
+        --up: #16A34A;
+        --down: #DC2626;
+        --amber: #B45309;
+    }
+
+    .stApp {
+        background: var(--bg);
+        color: var(--text-primary);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    #MainMenu, header[data-testid="stHeader"] { background: transparent; }
+
+    /* ---------------- Top navigation ---------------- */
+    .topnav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 2px 18px 2px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 8px;
+    }
+    .topnav-left { display: flex; align-items: center; gap: 18px; }
+
+    /* ---- Emblem: deep navy tile, inner bevel, blue rim glow ---- */
+    .logo-icon {
+        position: relative;
+        width: 62px; height: 62px;
+        border-radius: 18px;
+        background:
+            radial-gradient(120% 120% at 28% 18%, #3B82F6 0%, #1D4ED8 42%, #14264F 100%);
+        display: flex; align-items: center; justify-content: center;
+        box-shadow:
+            0 10px 26px rgba(29, 78, 216, 0.38),
+            0 2px 5px rgba(11, 18, 32, 0.22),
+            inset 0 1px 0 rgba(255, 255, 255, 0.42),
+            inset 0 -2px 6px rgba(3, 10, 26, 0.45);
+        flex-shrink: 0;
+    }
+    .logo-icon::after {
+        content: "";
+        position: absolute; inset: 0;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.20);
+        pointer-events: none;
+    }
+    .logo-icon svg { width: 34px; height: 34px; display: block; }
+
+    /* ---- Wordmark ---- */
+    .logo-lockup { display: flex; flex-direction: column; }
+    .logo-textrow { display: flex; align-items: center; gap: 12px; }
+    .logo-text {
+        font-weight: 900;
+        font-size: 38px;
+        letter-spacing: -1.5px;
+        line-height: 1.02;
+        color: #0B1220;
+        white-space: nowrap;
+    }
+    /* Two-tone: "Audit" in ink, "Intelligence" in a blue gradient */
+    .logo-text .lt-accent {
+        background: linear-gradient(92deg, #2563EB 0%, #4F46E5 55%, #7C3AED 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: #2563EB;
+    }
+
+    /* Live status pill */
+    .live-pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(22, 163, 74, 0.10);
+        border: 1px solid rgba(22, 163, 74, 0.35);
+        color: #15803D;
+        font-size: 10px; font-weight: 800;
+        letter-spacing: 1.2px; text-transform: uppercase;
+        padding: 4px 10px; border-radius: 999px;
+        white-space: nowrap;
+    }
+    .live-dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: #16A34A;
+        box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.65);
+        animation: livepulse 2s infinite;
+    }
+    @keyframes livepulse {
+        0%   { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.60); }
+        70%  { box-shadow: 0 0 0 7px rgba(22, 163, 74, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+    }
+
+    .logo-sub {
+        display: flex; align-items: center; gap: 9px;
+        font-size: 11px; font-weight: 700; color: var(--text-muted);
+        letter-spacing: 2.1px; text-transform: uppercase; margin-top: 7px;
+    }
+    .logo-rule {
+        width: 30px; height: 3px; border-radius: 2px;
+        background: linear-gradient(90deg, #2563EB, #7C3AED);
+        flex-shrink: 0;
+    }
+
+    /* ---- Top-right principal block ---- */
+    .topnav-user {
+        display: flex; align-items: center; gap: 16px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 12px 18px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .topnav-user-meta { text-align: right; line-height: 1.3; }
+    .topnav-user-label {
+        font-size: 10px; font-weight: 700; color: var(--accent-blue);
+        letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px;
+    }
+    .topnav-user-name { font-weight: 800; font-size: 20px; color: #0B1220; letter-spacing: -0.3px; }
+    .topnav-user-title { font-size: 13.5px; color: var(--text-secondary); font-weight: 500; }
+    .topnav-user-stamp { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+    .avatar-photo {
+        width: 68px; height: 68px; border-radius: 50%;
+        object-fit: cover; flex-shrink: 0;
+        border: 3px solid #fff;
+        box-shadow: 0 0 0 2px var(--accent-blue);
+    }
+    .avatar-circle-lg {
+        width: 68px; height: 68px; border-radius: 50%;
+        background: linear-gradient(135deg, #2563EB, #7C3AED);
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 800; font-size: 26px; color: #fff; flex-shrink: 0;
+        box-shadow: 0 0 0 2px var(--accent-blue);
+    }
+
+    .action-caption {
+        font-size: 11.5px; color: var(--text-muted);
+        font-family: 'JetBrains Mono', monospace; padding-top: 10px;
+    }
+
+    /* ---------------- Section headings ---------------- */
+    .section-heading {
+        font-size: 15px;
+        font-weight: 700;
+        color: #0B1220;
+        margin: 4px 0 14px 0;
+    }
+    .page-title {
+        font-size: 26px;
+        font-weight: 800;
+        color: #0B1220;
+        letter-spacing: -0.5px;
+        margin-bottom: 2px;
+    }
+    .page-subtitle {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 20px;
+    }
+
+    /* ================= TAB VISIBILITY FIX =================
+       Streamlit nests each tab label inside <p>/<div> nodes and applies its
+       own theme colour + a red/pink highlight bar. Colour therefore has to be
+       forced on the INNER nodes (and via -webkit-text-fill-color) or the
+       inactive tabs render almost invisible against the light background. */
+    div[data-testid="stTabs"] { margin-top: 4px; margin-bottom: 20px; }
+    div[data-testid="stTabs"] [role="tablist"] {
+        gap: 4px;
+        border-bottom: 1px solid var(--border);
+        background: transparent !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"] {
+        border-radius: 0 !important;
+        padding: 9px 18px !important;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        background: transparent !important;
+        border: none !important;
+        border-bottom: 3px solid transparent !important;
+        opacity: 1 !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"],
+    div[data-testid="stTabs"] button[role="tab"] *,
+    div[data-testid="stTabs"] button[role="tab"] p {
+        color: #0B1220 !important;
+        -webkit-text-fill-color: #0B1220 !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        opacity: 1 !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"]:hover,
+    div[data-testid="stTabs"] button[role="tab"]:hover *,
+    div[data-testid="stTabs"] button[role="tab"]:hover p {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"],
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] *,
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p {
+        color: var(--accent-blue) !important;
+        -webkit-text-fill-color: var(--accent-blue) !important;
+        font-weight: 800 !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        border-bottom: 3px solid var(--accent-blue) !important;
+    }
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"],
+    div[data-testid="stTabs"] [data-baseweb="tab-border"] {
+        background-color: transparent !important;
+        display: none !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"]:focus,
+    div[data-testid="stTabs"] button[role="tab"]:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+    /* ======================================================= */
+
+    /* ---------------- Inputs ---------------- */
+    .stTextInput>div>div>input {
+        background-color: #fff !important;
+        border: 1px solid var(--border) !important;
+        color: var(--text-primary) !important;
+        border-radius: 10px !important;
+        padding: 11px 16px !important;
+        font-size: 14px !important;
+    }
+    .stTextInput>div>div>input:focus {
+        border-color: var(--accent-blue) !important;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+    }
+
+    /* ---------------- Buttons ---------------- */
+    .stButton>button {
+        background: var(--accent-blue);
+        color: #fff !important;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 13.5px;
+        padding: 9px 18px;
+    }
+    .stButton>button * { color: #fff !important; -webkit-text-fill-color: #fff !important; }
+    .stButton>button:hover { background: var(--accent-blue-dark); }
+    [data-testid="stDownloadButton"]>button {
+        background: #fff;
+        color: var(--accent-blue) !important;
+        border: 1px solid var(--accent-blue);
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    [data-testid="stDownloadButton"]>button:hover { background: #EFF6FF; }
+
+    /* ---------------- Legible light theme inside controls ---------------- */
+    [data-testid="stExpander"] {
+        background: #fff !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 12px !important;
+    }
+    [data-testid="stExpander"] summary {
+        background: #fff !important;
+        color: var(--text-primary) !important;
+    }
+    [data-testid="stExpander"] summary:hover { color: var(--accent-blue) !important; }
+    [data-testid="stExpanderDetails"] { background: #fff !important; }
+    [data-testid="stExpander"] label,
+    [data-testid="stExpander"] p,
+    [data-testid="stExpander"] span,
+    [data-testid="stExpander"] div { color: var(--text-primary) !important; }
+    [data-testid="stSlider"] [data-testid="stTickBarMin"],
+    [data-testid="stSlider"] [data-testid="stTickBarMax"] { color: var(--text-secondary) !important; }
+    [data-testid="stSlider"] div[data-baseweb="slider"] > div { background: #E5E7EB !important; }
+    [data-testid="stSlider"] div[role="slider"] {
+        background-color: var(--accent-blue) !important;
+        border-color: var(--accent-blue) !important;
+    }
+    div[data-baseweb="tag"] {
+        background-color: rgba(37, 99, 235, 0.10) !important;
+        border: 1px solid rgba(37, 99, 235, 0.35) !important;
+        color: var(--accent-blue) !important;
+    }
+    div[data-baseweb="tag"] span { color: var(--accent-blue) !important; }
+    div[data-baseweb="tag"] svg { fill: var(--accent-blue) !important; }
+
+    /* ---------------- Featured Analysis hero ---------------- */
+    .featured-hero {
+        position: relative;
+        height: 360px;
+        border-radius: 16px;
+        background-size: cover;
+        background-position: center;
+        /* Fallback tint if the hero image fails to load */
+        background-color: #1E3A8A;
+        overflow: hidden;
+        margin-bottom: 30px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .featured-badge {
+        position: absolute; top: 20px; left: 20px;
+        color: #fff; font-size: 11px; font-weight: 700;
+        padding: 5px 12px; border-radius: 6px;
+        text-transform: uppercase; letter-spacing: 0.5px;
+        z-index: 2;
+    }
+    .featured-text { position: absolute; bottom: 24px; left: 28px; right: 28px; z-index: 2; }
+    .featured-title {
+        font-size: 27px; font-weight: 800; color: #fff; line-height: 1.28;
+        margin-bottom: 8px; text-shadow: 0 2px 10px rgba(0,0,0,0.35);
+    }
+    .featured-meta { font-size: 13px; color: rgba(255,255,255,0.85); font-weight: 500; }
+    .featured-link-overlay { position: absolute; inset: 0; z-index: 3; }
+
+    /* ---------------- Category newsroom grid ---------------- */
+    .briefing-hero {
+        position: relative;
+        overflow: hidden;
+        border-radius: 20px;
+        padding: 26px 30px;
+        margin: 4px 0 22px 0;
+        background:
+            radial-gradient(circle at 88% 20%, rgba(124,58,237,.32), transparent 30%),
+            radial-gradient(circle at 68% 100%, rgba(37,99,235,.28), transparent 34%),
+            linear-gradient(135deg, #0B1220 0%, #111C36 52%, #182A55 100%);
+        color: #fff;
+        box-shadow: 0 16px 40px rgba(11,18,32,.16);
+    }
+    .briefing-kicker {
+        display:flex; align-items:center; gap:9px;
+        font-size:10px; font-weight:800; letter-spacing:1.7px;
+        text-transform:uppercase; color:#93C5FD; margin-bottom:7px;
+    }
+    .briefing-kicker-dot {
+        width:7px; height:7px; border-radius:50%; background:#22C55E;
+        box-shadow:0 0 0 5px rgba(34,197,94,.12);
+    }
+    .briefing-title {
+        font-size:29px; line-height:1.08; font-weight:900;
+        letter-spacing:-1px; margin:0 0 7px 0;
+    }
+    .briefing-subtitle {
+        color:rgba(255,255,255,.70); font-size:12.5px;
+        max-width:700px; line-height:1.5;
+    }
+    .briefing-stats {
+        position:absolute; right:28px; top:24px;
+        display:flex; gap:10px;
+    }
+    .brief-stat {
+        min-width:86px; padding:10px 13px; text-align:center;
+        border:1px solid rgba(255,255,255,.13); border-radius:12px;
+        background:rgba(255,255,255,.07); backdrop-filter:blur(8px);
+    }
+    .brief-stat-number { font-size:19px; font-weight:900; line-height:1; }
+    .brief-stat-label { margin-top:5px; font-size:9px; text-transform:uppercase;
+        letter-spacing:.7px; color:rgba(255,255,255,.58); font-weight:700; }
+
+    .category-section { margin: 0 0 28px 0; }
+    .category-heading {
+        display:flex; align-items:center; justify-content:space-between;
+        margin:0 0 11px 0; padding-bottom:9px;
+        border-bottom:1px solid var(--border);
+    }
+    .category-heading-left { display:flex; align-items:center; gap:10px; }
+    .category-accent {
+        width:4px; height:24px; border-radius:99px; flex-shrink:0;
+    }
+    .category-name { font-size:17px; font-weight:850; color:#0B1220; letter-spacing:-.3px; }
+    .category-count {
+        font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700;
+        color:var(--text-muted); background:#F3F4F6; border-radius:999px; padding:4px 8px;
+    }
+    .category-grid {
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:14px;
+    }
+    .category-card {
+        position:relative; min-width:0; overflow:hidden;
+        display:flex; flex-direction:column;
+        background:#fff; border:1px solid var(--border); border-radius:15px;
+        box-shadow:0 2px 7px rgba(11,18,32,.035);
+        transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+    .category-card:hover {
+        transform:translateY(-2px);
+        border-color:#CBD5E1;
+        box-shadow:0 12px 28px rgba(11,18,32,.09);
+    }
+    .category-card:last-child:nth-child(odd) { grid-column:1 / -1; }
+    .category-card-image-wrap {
+        position:relative; width:100%; height:170px; overflow:hidden; background:#EEF2F7;
+    }
+    .category-card-image {
+        width:100%; height:100%; display:block; object-fit:cover;
+        transition:transform .35s ease;
+    }
+    .category-card:hover .category-card-image { transform:scale(1.035); }
+    .category-card-image-wrap::after {
+        content:""; position:absolute; inset:0;
+        background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(0,0,0,.20));
+        pointer-events:none;
+    }
+    .category-card-body { padding:14px 15px 13px; display:flex; flex-direction:column; min-height:174px; }
+    .category-card-meta { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+    .badge {
+        display:inline-block; color:#fff; font-size:9.5px; font-weight:800;
+        padding:4px 9px; border-radius:5px; text-transform:uppercase; letter-spacing:.5px;
+    }
+    .insight-date { font-size:10.5px; color:var(--text-muted); font-weight:600; }
+    .category-card-title {
+        font-size:16px; font-weight:800; color:#0B1220; line-height:1.3;
+        letter-spacing:-.2px; margin:0 0 7px;
+    }
+    .category-card-title-link { text-decoration:none; }
+    .category-card-title-link:hover .category-card-title { color:var(--accent-blue); }
+    .category-card-desc {
+        font-size:12.5px; color:var(--text-secondary); line-height:1.5;
+        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    }
+    .category-card-footer {
+        display:flex; justify-content:space-between; align-items:center;
+        margin-top:auto; padding-top:11px;
+    }
+    .source-chip { font-size:10px; color:var(--text-muted); font-weight:650; overflow:hidden;
+        text-overflow:ellipsis; white-space:nowrap; max-width:55%; }
+    .read-link { font-size:11.5px; font-weight:800; color:var(--accent-blue); text-decoration:none; }
+    .read-link:hover { text-decoration:underline; }
+
+    @media (max-width: 900px) {
+        .briefing-stats { position:static; margin-top:18px; }
+        .category-grid { grid-template-columns:1fr; }
+        .category-card:last-child:nth-child(odd) { grid-column:auto; }
+    }
+
+    /* ---------------- Right sidebar panels ---------------- */
+    .side-panel {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin-bottom: 16px;
+    }
+    .side-panel-title {
+        font-size: 11px; font-weight: 700; color: var(--text-secondary);
+        text-transform: uppercase; letter-spacing: 0.8px;
+        margin-bottom: 14px; display: flex; align-items: center; gap: 6px;
+    }
+    .filter-row, .pulse-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 8px 0; border-bottom: 1px solid #F3F4F6; font-size: 13px; color: #374151;
+    }
+    .filter-row:last-child, .pulse-row:last-child { border-bottom: none; }
+    .filter-value { font-weight: 600; color: var(--text-primary); }
+    .pulse-value { font-weight: 700; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; }
+
+    /* ---------------- Market panel ---------------- */
+    .mkt-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 9px 0; border-bottom: 1px solid #F3F4F6;
+    }
+    .mkt-row:last-child { border-bottom: none; }
+    .mkt-name { font-size: 13px; font-weight: 600; color: #374151; }
+    .mkt-sub { font-size: 10.5px; color: var(--text-muted); font-weight: 500; }
+    .mkt-right { text-align: right; }
+    .mkt-price { font-size: 13.5px; font-weight: 700; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; }
+    .mkt-chg { font-size: 11.5px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .mkt-up { color: var(--up); }
+    .mkt-down { color: var(--down); }
+    .mkt-stamp { font-size: 10.5px; color: var(--text-muted); margin-top: 12px; }
+
+    /* ---------------- Risk radar ---------------- */
+    .risk-row { padding: 8px 0; border-bottom: 1px solid #F3F4F6; }
+    .risk-row:last-child { border-bottom: none; }
+    .risk-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .risk-name { font-size: 12.5px; font-weight: 600; color: #374151; }
+    .risk-count { font-size: 11px; font-weight: 700; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; }
+    .risk-track { height: 6px; background: #F3F4F6; border-radius: 3px; overflow: hidden; }
+    .risk-fill { height: 100%; border-radius: 3px; }
+
+    .alert-item {
+        display: block; text-decoration: none;
+        padding: 9px 0; border-bottom: 1px solid #F3F4F6;
+    }
+    .alert-item:last-child { border-bottom: none; }
+    .alert-tag {
+        font-size: 9.5px; font-weight: 800; color: var(--amber);
+        letter-spacing: 0.6px; text-transform: uppercase;
+    }
+    .alert-text {
+        font-size: 12.5px; color: #0B1220; font-weight: 600; line-height: 1.4; margin-top: 3px;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .alert-item:hover .alert-text { color: var(--accent-blue); }
+
+    .cta-panel {
+        background: linear-gradient(135deg, #2563EB, #1D4ED8);
+        border-radius: 14px;
+        padding: 20px 22px 6px 22px;
+        color: #fff;
+        margin-bottom: -4px;
+    }
+    .cta-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .cta-desc { font-size: 12.5px; color: rgba(255,255,255,0.85); line-height: 1.5; margin-bottom: 14px; }
+
+    .empty-state-panel {
+        text-align: center; padding: 48px;
+        background: var(--card); border-radius: 16px; border: 1px dashed var(--border);
+        margin-top: 14px;
+    }
+
+    /* ---------------- Footer ---------------- */
+    .app-footer {
+        display: flex; justify-content: space-between; align-items: flex-start;
+        padding-top: 22px; margin-top: 8px;
+    }
+    .footer-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: 800; font-size: 14.5px; color: #0B1220; }
+    .footer-tagline { font-size: 12px; color: var(--text-muted); max-width: 320px; line-height: 1.5; }
+    .footer-links { display: flex; gap: 22px; font-size: 12.5px; color: var(--text-secondary); font-weight: 600; }
+    .footer-copyright { font-size: 11.5px; color: var(--text-muted); margin-top: 18px; }
 </style>
 """, unsafe_allow_html=True)
 
-CATEGORIES=["Transformation","Regulation","People","Global Banks"]
-CATEGORY_COLORS={"Transformation":"#70D8FF","Regulation":"#C7FF4A","People":"#B7A7FF","Global Banks":"#76F7C5"}
-TERMS={
-"Transformation":["digital transformation","modernization","modernisation","core banking","automation","artificial intelligence","generative ai","genai","machine learning","cloud","digital banking","technology transformation"],
-"Regulation":["regulation","regulatory","rbi","basel","prudential","supervision","supervisory","enforcement","aml","anti-money laundering","kyc","sanctions","capital requirements","compliance"],
-"People":["appointed","appointment","ceo","cfo","cro","ciso","chief audit","internal audit","audit committee","board","director","chairman","leadership","executive"],
-"Global Banks":["hsbc","jpmorgan","jpmorgan chase","citi","citigroup","barclays","deutsche bank","ubs","bnp paribas","santander","standard chartered","bank of america","goldman sachs","morgan stanley","wells fargo","ing","icbc","mufg","mizuho"]}
-AUDIT_TERMS=["audit","internal control","control weakness","governance","risk management","operational risk","model risk","compliance","regulatory","supervision","enforcement","aml","kyc","sanctions","fraud","misconduct","financial crime","bank","banking","rbi","basel","credit risk","liquidity","penalty","fined","investigation","whistleblower","irregularities","lapses","cybersecurity","ransomware","data breach"]
-ALERT_TERMS=["enforcement","penalty","fined","fine","fraud","misconduct","investigation","probe","money laundering","aml","sanctions","irregularities","lapses","control deficiency","restatement","whistleblower"]
 
-def key():
-    value=os.getenv("NEWSDATA_API_KEY") or os.getenv("NEWSDATA_KEY")
-    if not value:
-        try: value=st.secrets.get("NEWSDATA_API_KEY") or st.secrets.get("NEWSDATA_KEY")
-        except Exception: value=""
-    return str(value or "").strip()
+# ---------------------------------------------------------
+# 2. CATEGORIES, SCORING VOCABULARY & BRANDING
+# ---------------------------------------------------------
 
-def classify(title,desc,hint):
-    if hint in CATEGORIES:return hint
-    text=f"{title} {desc}".lower()
-    scores={c:sum(text.count(t) for t in terms) for c,terms in TERMS.items()}
-    return max(scores,key=scores.get) if max(scores.values(),default=0) else "Transformation"
+CATEGORIES = {k: {} for k in npv.CATEGORY_NAMES}
 
-def relevance(title,desc):
-    text=f"{title} {desc}".lower()
-    return min(40,sum(2 if " " in t else 1 for t in AUDIT_TERMS if t in text))
+CATEGORY_DISPLAY = {
+    "Transformation": "Transformation",
+    "Regulation": "Regulation",
+    "People": "People",
+    "Global Banks": "Global Banking",
+}
+CATEGORY_COLORS = {
+    "Transformation": "#2563EB",
+    "Regulation": "#16A34A",
+    "People": "#6B7280",
+    "Global Banks": "#7C3AED",
+}
 
-def ago(value):
+# Head of Internal Audit Department — shown top-right
+PRAGATI_NAME = "Pragati"
+PRAGATI_TITLE = "Head of Internal Audit"
+# NOTE: paste your base64 JPEG string here to show the photo.
+PRAGATI_PHOTO_B64 = "PASTE_YOUR_EXISTING_BASE64_STRING_HERE"
+
+AUDIT_TERMS = [
+    "internal audit", "external audit", "audit committee", "auditor",
+    "audit finding", "audit findings", "internal control", "internal controls",
+    "control weakness", "control weaknesses", "control deficiency",
+    "control deficiencies", "governance", "risk management", "operational risk",
+    "model risk", "compliance", "regulatory", "regulation", "supervision",
+    "supervisory", "enforcement", "aml", "anti-money laundering", "kyc",
+    "sanctions", "fraud", "misconduct", "financial crime",
+    "bank", "banking", "lender", "rbi", "central bank", "basel", "npa",
+    "asset quality", "provisioning", "capital adequacy", "credit risk",
+    "liquidity", "penalty", "fined", "probe", "investigation", "whistleblower",
+    "disclosure", "restatement", "irregularities", "lapses",
+]
+
+ALERT_TERMS = [
+    "enforcement", "penalty", "fined", "fine", "fraud", "misconduct",
+    "investigation", "probe", "money laundering", "aml", "sanctions",
+    "irregularities", "lapses", "control deficiency", "restatement",
+    "whistleblower", "settlement",
+]
+
+CATEGORY_TERMS = {
+    "Transformation": [
+        "digital transformation", "modernization", "modernisation", "core banking",
+        "automation", "artificial intelligence", "generative ai", "genai",
+        "machine learning", "cloud", "digital banking", "technology transformation",
+        "operating model",
+    ],
+    "Regulation": [
+        "regulation", "regulatory", "rbi", "basel", "prudential", "supervision",
+        "supervisory", "enforcement", "aml", "anti-money laundering", "kyc",
+        "sanctions", "capital requirements", "regulatory capital", "compliance",
+    ],
+    "People": [
+        "appointed", "appointment", "ceo", "cfo", "cro", "ciso", "chief audit",
+        "internal audit", "audit committee", "board", "director", "chairman",
+        "chairwoman", "leadership", "executive",
+    ],
+    "Global Banks": [
+        "hsbc", "jpmorgan", "jpmorgan chase", "citi", "citigroup", "barclays",
+        "deutsche bank", "ubs", "bnpparibas", "bnp paribas", "santander",
+        "standard chartered", "bank of america", "goldman sachs", "morgan stanley",
+        "wells fargo", "ing", "icbc", "mufg", "mizuho",
+    ],
+}
+
+
+def placeholder_data_uri(hex_color="#94A3B8"):
+    """
+    Inline, URL-encoded newspaper SVG used as the thumbnail fallback.
+    Returned as a data: URI so it needs no network call and cannot itself fail.
+    """
+    c = hex_color.replace("#", "%23")
+    return (
+        "data:image/svg+xml;charset=utf-8,"
+        "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' "
+        f"stroke='{c}' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E"
+        "%3Cpath d='M4 5h13a1 1 0 0 1 1 1v12a2 2 0 0 0 2 2H5a1 1 0 0 1-1-1V5z'/%3E"
+        "%3Cpath d='M18 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2'/%3E"
+        "%3Cpath d='M7 8h7'/%3E%3Cpath d='M7 11.5h7'/%3E"
+        "%3Cpath d='M7 15h4'/%3E%3Cpath d='M13.5 15h.5'/%3E"
+        "%3C/svg%3E"
+    )
+
+
+RISK_THEMES = {
+    "Financial crime / AML": (["aml", "anti-money laundering", "money laundering", "kyc", "financial crime", "sanctions"], "#DC2626"),
+    "Enforcement / penalties": (["enforcement", "penalty", "fined", "fine", "settlement", "supervisory action"], "#EA580C"),
+    "Fraud & misconduct": (["fraud", "misconduct", "irregularities", "lapses", "whistleblower"], "#B45309"),
+    "Credit & asset quality": (["npa", "asset quality", "provisioning", "credit risk", "bad loan", "slippage"], "#7C3AED"),
+    "Technology & AI risk": (["artificial intelligence", "generative ai", "cloud", "automation", "core banking", "outage"], "#2563EB"),
+}
+
+
+# ---------------------------------------------------------
+# 3. KEY RESOLUTION & SCORING
+# ---------------------------------------------------------
+
+def _lookup_secret(*names):
+    """Resolve credentials from environment variables or Streamlit Secrets only."""
+    for name in names:
+        val = os.getenv(name, "").strip()
+        if val:
+            return val
+
     try:
-        dt=datetime.fromisoformat(str(value).replace("Z","+00:00"))
-        if dt.tzinfo is None:dt=dt.replace(tzinfo=timezone.utc)
-        mins=max(0,int((datetime.now(timezone.utc)-dt.astimezone(timezone.utc)).total_seconds()/60))
-        return f"{mins}m ago" if mins<60 else f"{mins//60}h ago" if mins<1440 else f"{mins//1440}d ago"
-    except Exception:return "Recent"
+        for name in names:
+            val = st.secrets.get(name, "")
+            if val:
+                return str(val).strip()
+    except Exception:
+        pass
 
-@st.cache_data(ttl=300,show_spinner=False)
-def load_news(api_key,days,min_rel,cats):
-    raw,errors,stats=npv.fetch_all({"newsdata":api_key},lookback_days=days,categories=list(cats),fuzzy_threshold=.72,max_workers=6)
-    rows=[]
-    for r in raw:
-        title=str(r.get("title") or "").strip()
-        if not title:continue
-        desc=str(r.get("description") or r.get("content") or "").strip()
-        score=relevance(title,desc)
-        cat=classify(title,desc,r.get("category_hint"))
-        if cat not in cats or score<min_rel:continue
-        rows.append({"title":title,"description":desc,"url":str(r.get("url") or "#"),"image_url":str(r.get("image_url") or ""),"source":str(r.get("source") or "Unknown"),"publishedAt":r.get("published_at") or "","category":cat,"score":score})
-    rows.sort(key=lambda x:(x["score"],x["publishedAt"]),reverse=True)
-    stats=dict(stats or {});stats["kept"]=len(rows)
-    return rows,errors,stats
+    return ""
 
-def img_fallback(color):
-    return f"data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 340'><rect width='600' height='340' fill='%230f241d'/><circle cx='470' cy='90' r='65' fill='{color}' opacity='.1'/><path d='M0 285L180 170l100 65 110-105 210 130v80H0z' fill='{color}' opacity='.1'/></svg>"
 
-def cards(category,rows):
-    if not rows:return
-    color=CATEGORY_COLORS[category];html=[]
-    for a in rows:
-        url=escape(a["url"],quote=True);image=escape(a["image_url"],quote=True) or img_fallback(color)
-        fallback=img_fallback(color)
-        html.append(f"<article class='card'><a class='thumb' href='{url}' target='_blank' rel='noopener'><img src='{image}' onerror=\"this.onerror=null;this.src='{fallback}';\" alt='' loading='lazy'></a><div class='body'><div class='meta'><span class='tag'>{escape(category)}</span><span>{escape(ago(a['publishedAt']))}</span></div><div class='headline'><a href='{url}' target='_blank' rel='noopener'>{escape(a['title'])}</a></div><div class='desc'>{escape(a['description'] or 'No description available.')}</div><div class='foot'><span class='source'>{escape(a['source'])}</span><a class='read' href='{url}' target='_blank' rel='noopener'>Read ↗</a></div></div></article>")
-    st.markdown(f"<div class='section'><div class='section-title'>{escape(category)}</div><div class='count'>{len(rows):02d} stories</div></div><div class='news-grid'>{''.join(html)}</div>",unsafe_allow_html=True)
+def get_api_keys():
+    """Return only the server-side NewsData.io credential."""
+    return {"newsdata": get_newdata_api_key()}
 
-def rail(rows):
-    sources=Counter(x["source"] for x in rows)
-    alerts=sum(1 for x in rows if any(t in f"{x['title']} {x['description']}".lower() for t in ALERT_TERMS))
-    st.markdown(f"<div class='rail'><div class='rail-title'>Signal monitor</div><div class='row'><span>Stories</span><b>{len(rows)}</b></div><div class='row'><span>Sources</span><b>{len(sources)}</b></div><div class='row'><span>Priority signals</span><b>{alerts}</b></div><div class='row'><span>Active themes</span><b>04</b></div></div>",unsafe_allow_html=True)
-    if sources:
-        s=''.join(f"<div class='row'><span>{escape(str(n))}</span><b>{v}</b></div>" for n,v in sources.most_common(6))
-        st.markdown(f"<div class='rail'><div class='rail-title'>Source pulse</div>{s}</div>",unsafe_allow_html=True)
-    counts={c:sum(1 for x in rows if x["category"]==c) for c in CATEGORIES};peak=max(counts.values(),default=1)
-    bars=''.join(f"<div style='margin:9px 0'><div class='row' style='border:0;padding:0'><span>{escape(c)}</span><b>{n}</b></div><div class='bar'><div class='fill' style='width:{int(n/peak*100)}%'></div></div></div>" for c,n in counts.items())
-    st.markdown(f"<div class='rail'><div class='rail-title'>Theme distribution</div>{bars}</div>",unsafe_allow_html=True)
+# ---------------------------------------------------------
+# 4. LIVE MARKET SNAPSHOT
+# ---------------------------------------------------------
 
-logo="<svg viewBox='0 0 32 32' fill='none'><circle cx='14' cy='14' r='8.5' stroke='#C7FF4A' stroke-width='2'/><path d='M20 20l7 7' stroke='#C7FF4A' stroke-width='2.5' stroke-linecap='round'/><path d='M10 16v-3M14 16v-6M18 16V9' stroke='#76F7C5' stroke-width='1.8' stroke-linecap='round'/></svg>"
-st.markdown(f"<div class='ai-head'><div class='brand'><div class='mark'>{logo}</div><div><div class='brand-name'>Audit Intelligence</div><div class='brand-sub'>Global Banking Risk · Controls · Regulatory Signals</div></div></div><div class='status'><span class='dot'></span>Live intelligence</div></div>",unsafe_allow_html=True)
-st.markdown("<div class='hero'><div class='kicker'>● Executive intelligence layer</div><div class='title'>Banking risk, <span>decoded.</span></div><div class='copy'>A live editorial briefing for transformation, regulation, people and global banking — designed for rapid scanning by audit, risk and control functions.</div><div class='chips'><span class='chip'><b>04</b> themes</span><span class='chip'><b>NewsData.io</b> source</span><span class='chip'><b>05 min</b> cache</span><span class='chip'><b>server-side</b> credential</span></div></div>",unsafe_allow_html=True)
+MARKET_TICKERS = [
+    ("^BSESN",   "SENSEX",      "BSE 30"),
+    ("^NSEI",    "NIFTY 50",    "NSE"),
+    ("^NSEBANK", "BANK NIFTY",  "NSE Banks"),
+    ("USDINR=X", "USD / INR",   "Spot FX"),
+    ("BZ=F",     "Brent Crude", "USD/bbl"),
+    ("GC=F",     "Gold",        "USD/oz"),
+]
 
-c1,c2,c3,c4=st.columns([2.4,1,1,1],gap="small")
-with c1: search=st.text_input("Search",placeholder="Search bank, regulation, AI, audit…",label_visibility="collapsed")
-with c2: days=st.selectbox("Window",[1,3,7,14,30],2,format_func=lambda x:f"Last {x} days",label_visibility="collapsed")
-with c3: min_rel=st.selectbox("Signal",[0,4,8,12],0,format_func=lambda x:"All signals" if x==0 else f"Signal ≥ {x}",label_visibility="collapsed")
-with c4: refresh=st.button("↻ Refresh",use_container_width=True)
-if refresh:load_news.clear();st.rerun()
-api_key=key()
-if not api_key:
-    st.error("NewsData.io is not configured. Add NEWSDATA_API_KEY in Streamlit Cloud → App settings → Secrets.")
+YF_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+YF_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AuditIntel/1.0)"}
+
+
+def fetch_quote(symbol):
+    resp = requests.get(
+        YF_CHART_URL.format(symbol=symbol),
+        params={"range": "1d", "interval": "5m"},
+        headers=YF_HEADERS,
+        timeout=10,
+    )
+    resp.raise_for_status()
+    meta = resp.json()["chart"]["result"][0]["meta"]
+
+    price = meta.get("regularMarketPrice")
+    prev = meta.get("chartPreviousClose") or meta.get("previousClose")
+
+    if price is None or not prev:
+        raise ValueError("No price data returned")
+
+    change = price - prev
+    pct = (change / prev) * 100
+    return {"price": float(price), "change": float(change), "pct": float(pct)}
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def load_market_snapshot():
+    results = {}
+
+    with ThreadPoolExecutor(max_workers=len(MARKET_TICKERS)) as executor:
+        futures = {
+            executor.submit(fetch_quote, symbol): symbol
+            for symbol, _, _ in MARKET_TICKERS
+        }
+        for future in as_completed(futures):
+            symbol = futures[future]
+            try:
+                results[symbol] = future.result()
+            except Exception:
+                results[symbol] = None
+
+    return results, ist_now_str()
+
+
+def render_market_panel():
+    quotes, stamp = load_market_snapshot()
+
+    rows_html = ""
+    for symbol, name, sub in MARKET_TICKERS:
+        q = quotes.get(symbol)
+
+        if not q:
+            rows_html += (
+                f'<div class="mkt-row">'
+                f'<div><div class="mkt-name">{name}</div><div class="mkt-sub">{sub}</div></div>'
+                f'<div class="mkt-right"><div class="mkt-price" style="color:#9CA3AF;">—</div>'
+                f'<div class="mkt-chg" style="color:#9CA3AF;">unavailable</div></div>'
+                f'</div>'
+            )
+            continue
+
+        cls = "mkt-up" if q["pct"] >= 0 else "mkt-down"
+        arrow = "▲" if q["pct"] >= 0 else "▼"
+        rows_html += (
+            f'<div class="mkt-row">'
+            f'<div><div class="mkt-name">{name}</div><div class="mkt-sub">{sub}</div></div>'
+            f'<div class="mkt-right"><div class="mkt-price">{q["price"]:,.2f}</div>'
+            f'<div class="mkt-chg {cls}">{arrow} {abs(q["change"]):,.2f} ({abs(q["pct"]):.2f}%)</div></div>'
+            f'</div>'
+        )
+
+    st.markdown(f"""
+    <div class="side-panel">
+        <div class="side-panel-title">📈 Live Market Snapshot</div>
+        {rows_html}
+        <div class="mkt-stamp">Last refreshed {stamp} · delayed data, indicative only</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# 5. RISK RADAR + PRIORITY ALERTS
+# ---------------------------------------------------------
+
+def render_risk_radar(rows):
+    if not rows:
+        return
+
+    counts = {}
+    for theme, (terms, color) in RISK_THEMES.items():
+        n = 0
+        for row in rows:
+            text = f'{row["title"]} {row["description"]}'.lower()
+            if any(t in text for t in terms):
+                n += 1
+        counts[theme] = (n, color)
+
+    peak = max((n for n, _ in counts.values()), default=0)
+    if peak == 0:
+        return
+
+    rows_html = ""
+    for theme, (n, color) in sorted(counts.items(), key=lambda x: x[1][0], reverse=True):
+        width = int((n / peak) * 100) if peak else 0
+        rows_html += (
+            f'<div class="risk-row">'
+            f'<div class="risk-head"><span class="risk-name">{theme}</span>'
+            f'<span class="risk-count">{n}</span></div>'
+            f'<div class="risk-track"><div class="risk-fill" style="width:{width}%; background:{color};"></div></div>'
+            f'</div>'
+        )
+
+    st.markdown(f"""
+    <div class="side-panel">
+        <div class="side-panel-title">🎯 Risk Radar · Theme Exposure</div>
+        {rows_html}
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_priority_alerts(rows, limit=5):
+    flagged = []
+    for row in rows:
+        text = f'{row["title"]} {row["description"]}'.lower()
+        hits = [t for t in ALERT_TERMS if t in text]
+        if hits:
+            flagged.append((len(hits), row, hits[0]))
+
+    if not flagged:
+        return
+
+    flagged.sort(key=lambda x: (x[0], x[1]["audit_relevance"]), reverse=True)
+
+    items_html = ""
+    for _, row, tag in flagged[:limit]:
+        items_html += (
+            f'<a class="alert-item" href="{row["url"]}" target="_blank">'
+            f'<div class="alert-tag">⚠ {tag.upper()} · {row["source"]}</div>'
+            f'<div class="alert-text">{row["title"]}</div>'
+            f'</a>'
+        )
+
+    st.markdown(f"""
+    <div class="side-panel">
+        <div class="side-panel-title">🚨 Priority Alerts ({len(flagged)})</div>
+        {items_html}
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_source_panel(rows, limit=5):
+    if not rows:
+        return
+
+    counter = Counter(r["source"] for r in rows)
+    rows_html = "".join(
+        f'<div class="pulse-row"><span>{name}</span><span class="pulse-value">{n}</span></div>'
+        for name, n in counter.most_common(limit)
+    )
+
+    st.markdown(f"""
+    <div class="side-panel">
+        <div class="side-panel-title">📰 Top Sources</div>
+        {rows_html}
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# 6. TOP NAVIGATION
+# ---------------------------------------------------------
+
+if PRAGATI_PHOTO_B64 and not PRAGATI_PHOTO_B64.startswith("PASTE_"):
+    avatar_html = (
+        f'<img src="data:image/jpeg;base64,{PRAGATI_PHOTO_B64}" '
+        f'class="avatar-photo" alt="{PRAGATI_NAME}" />'
+    )
+else:
+    avatar_html = f'<div class="avatar-circle-lg">{PRAGATI_NAME[:1].upper()}</div>'
+
+# Emblem: an audit lens (magnifier) whose glass contains a rising analytics
+# bar chart, framed by a scanning arc — "examine + measure + monitor".
+LOGO_SVG = """
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M26.6 8.4a13 13 0 0 1 .9 13.4" stroke="#FFFFFF" stroke-opacity="0.42"
+        stroke-width="2" stroke-linecap="round"/>
+  <path d="M5.2 22.6a13 13 0 0 1 .5-13.9" stroke="#FFFFFF" stroke-opacity="0.42"
+        stroke-width="2" stroke-linecap="round"/>
+  <circle cx="14.6" cy="14.6" r="8.2" stroke="#FFFFFF" stroke-width="2.4"/>
+  <circle cx="14.6" cy="14.6" r="8.2" fill="#FFFFFF" fill-opacity="0.14"/>
+  <rect x="10.7" y="15.1" width="2.25" height="4.5" rx="1.12" fill="#FFFFFF"/>
+  <rect x="13.9" y="12.2" width="2.25" height="7.4" rx="1.12" fill="#FFFFFF"/>
+  <rect x="17.1" y="9.6"  width="2.25" height="10"  rx="1.12" fill="#FFFFFF"/>
+  <path d="M20.9 20.9 L26.4 26.4" stroke="#FFFFFF" stroke-width="3.1"
+        stroke-linecap="round"/>
+</svg>
+"""
+
+st.markdown(f"""
+<div class="topnav">
+    <div class="topnav-left">
+        <div class="logo-icon">{LOGO_SVG}</div>
+        <div class="logo-lockup">
+            <div class="logo-textrow">
+                <div class="logo-text">Audit<span class="lt-accent">&nbsp;Intelligence</span></div>
+                <span class="live-pill"><span class="live-dot"></span>Live</span>
+            </div>
+            <div class="logo-sub"><span class="logo-rule"></span>Global Banking Risk &amp; Controls Briefing</div>
+        </div>
+    </div>
+    <div class="topnav-user">
+        <div class="topnav-user-meta">
+            <div class="topnav-user-label">Prepared for</div>
+            <div class="topnav-user-name">{PRAGATI_NAME}</div>
+            <div class="topnav-user-title">{PRAGATI_TITLE}</div>
+            <div class="topnav-user-stamp">{ist_now_str()}</div>
+        </div>
+        {avatar_html}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# 7. ACTION BAR — one button refreshes BOTH news and markets
+# ---------------------------------------------------------
+
+api_keys = get_api_keys()
+
+act_l, act_r = st.columns([1, 4])
+
+with act_l:
+    hard_refresh = st.button("⟲  Refresh All Data", use_container_width=True, key="refresh_all")
+
+with act_r:
+    last_run = st.session_state.get("last_refresh", "not yet loaded this session")
+    active_now = [npv.PROVIDERS[p]["label"] for p, k in api_keys.items() if k]
+    src_txt = ", ".join(active_now) if active_now else "no provider keys yet"
+    st.markdown(
+        f'<div class="action-caption">{src_txt} · last pulled: {last_run}</div>',
+        unsafe_allow_html=True,
+    )
+
+if hard_refresh:
+    load_news.clear()
+    load_market_snapshot.clear()
+    st.session_state.pop("news_loaded", None)
+
+
+# ---------------------------------------------------------
+# 8. DATA CONTROLS
+# ---------------------------------------------------------
+
+with st.expander("⚙️  Data Sources, Filters & Controls", expanded=False):
+    st.markdown(
+        '<div style="font-size:12.5px;font-weight:700;color:#0B1220;margin-bottom:2px;">'
+        'News source'
+        '</div>'
+        '<div style="font-size:11.5px;color:#6B7280;margin-bottom:8px;">'
+        'NewsData.io is the sole news provider. The API credential is stored server-side '
+        'and is never displayed or accepted in the UI.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    if api_keys["newsdata"]:
+        st.success("NewsData.io connected", icon="✓")
+    else:
+        st.warning("NewsData.io API key is not configured on the server.", icon="⚠️")
+
+    st.divider()
+    ctrl_a, ctrl_b, ctrl_c = st.columns(3)
+    with ctrl_a:
+        lookback_days = st.slider("Lookback Window (Days)", min_value=1, max_value=30, value=7)
+    with ctrl_b:
+        min_relevance = st.slider(
+            "Minimum Audit Relevance", min_value=0, max_value=40, value=5, step=5,
+            help="Lower this to widen the feed; raise it to keep only high-signal stories.",
+        )
+    with ctrl_c:
+        dedup_mode = st.select_slider(
+            "Duplicate Removal", options=["Loose", "Balanced", "Aggressive"],
+            value="Balanced",
+            help="Controls how aggressively similar headlines are merged.",
+        )
+    fuzzy_threshold = {"Loose": 0.85, "Balanced": 0.72, "Aggressive": 0.58}[dedup_mode]
+    selected_categories = st.multiselect(
+        "Active Categories", options=list(CATEGORIES.keys()),
+        default=list(CATEGORIES.keys()),
+        format_func=lambda c: CATEGORY_DISPLAY.get(c, c),
+    )
+
+if not any(api_keys.values()):
+    st.info(
+        "💡 NewsData.io is configured server-side. "
+        "Refresh the briefing to load the latest stories."
+    )
     st.stop()
-with st.spinner("Synchronising intelligence…"): articles,errors,stats=load_news(api_key,days,min_rel,tuple(CATEGORIES))
-if search:
-    q=search.lower().strip();articles=[a for a in articles if q in f"{a['title']} {a['description']} {a['source']} {a['category']}".lower()]
-sources=len(set(a["source"] for a in articles))
-st.markdown(f"<div class='chips'><span class='chip'><b>{len(articles):02d}</b> stories</span><span class='chip'><b>{sources:02d}</b> sources</span><span class='chip'>Updated <b>{datetime.now(timezone.utc).strftime('%d %b %Y · %H:%M UTC')}</b></span></div>",unsafe_allow_html=True)
-main,side=st.columns([2.45,1],gap="large")
-with main:
-    if not articles:st.markdown("<div class='rail' style='margin-top:24px;text-align:center;padding:45px'><div class='rail-title'>No matching intelligence</div><div style='color:#718980;font-size:10px'>Expand the window or change the search term.</div></div>",unsafe_allow_html=True)
-    for cat in CATEGORIES:cards(cat,[a for a in articles if a["category"]==cat])
-with side:
-    rail(articles)
-    if articles:
-        st.download_button("Download briefing CSV",pd.DataFrame(articles).to_csv(index=False).encode(),f"audit_intelligence_{datetime.now().strftime('%Y%m%d_%H%M')}.csv","text/csv",use_container_width=True)
-if errors:
-    with st.expander("System diagnostics"):
-        for e in errors:st.write(e)
-st.markdown("<div class='app-foot'><span>AUDIT INTELLIGENCE · INTERNAL BRIEFING</span><span>NewsData.io · Server-side credential · Executive research interface</span></div>",unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# 9. DATA INGESTION & FILTERING
+# ---------------------------------------------------------
+
+active_keys = tuple(sorted((p, k) for p, k in api_keys.items() if k))
+params_key = (lookback_days, min_relevance, fuzzy_threshold,
+              tuple(sorted(selected_categories)), active_keys)
+
+if ("news_loaded" not in st.session_state) or (st.session_state.get("params_key") != params_key):
+    with st.spinner("Compiling the audit intelligence briefing..."):
+        articles, errors, stats = load_news(
+            tuple(sorted(api_keys.items())),
+            lookback_days,
+            min_relevance,
+            fuzzy_threshold,
+            tuple(sorted(selected_categories)),
+        )
+
+    st.session_state.news = articles
+    st.session_state.news_errors = errors
+    st.session_state.news_stats = stats
+    st.session_state.news_loaded = True
+    st.session_state.params_key = params_key
+    st.session_state.last_refresh = ist_now_str()
+
+articles = st.session_state.get("news", [])
+errors = st.session_state.get("news_errors", [])
+stats = st.session_state.get("news_stats", {})
+
+filtered = [a for a in articles if a["category"] in selected_categories] if selected_categories else []
+
+with st.expander("🔎 Ingestion Diagnostics", expanded=False):
+    if stats:
+        pp = stats.get("per_provider", {})
+        exhausted = set(stats.get("exhausted", []))
+        rows = ""
+
+        for pid, meta in npv.PROVIDERS.items():
+            role = "active"
+            s = pp.get(pid, {})
+
+            if not api_keys.get(pid):
+                state, color = "not configured", "#9CA3AF"
+            elif pid in exhausted:
+                state, color = "quota reached", "#DC2626"
+            elif s.get("used"):
+                state, color = "active", "#16A34A"
+            else:
+                state, color = "idle (standby)", "#6B7280"
+
+            rows += (
+                f'<tr>'
+                f'<td style="padding:5px 14px 5px 0;font-weight:600;">{meta["label"]}</td>'
+                f'<td style="padding:5px 14px 5px 0;color:#6B7280;">{role}</td>'
+                f'<td style="padding:5px 14px 5px 0;">{s.get("requests",0)} req</td>'
+                f'<td style="padding:5px 14px 5px 0;">{s.get("articles",0)} articles</td>'
+                f'<td style="color:{color};font-weight:600;">{state}</td>'
+                f'</tr>'
+            )
+
+        d = stats.get("dedup", {})
+        st.markdown(
+            f"""
+            <table style="font-size:12.5px;color:#111827;border-collapse:collapse;margin-bottom:10px;">
+            {rows}
+            </table>
+            <div style="font-size:12.5px; color:#111827; line-height:1.9;">
+            <b>{stats.get('raw',0)}</b> raw articles ·
+            removed <b>{d.get('by_url',0)}</b> same-link, <b>{d.get('by_title',0)}</b> same-headline,
+            <b>{d.get('by_fuzzy',0)}</b> near-duplicate ·
+            <b>{stats.get('unique',0)}</b> unique stories ·
+            <b>{stats.get('dropped_low_relevance',0)}</b> below relevance floor ·
+            <b>{stats.get('kept',0)}</b> retained
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if stats.get("failover"):
+            st.warning(
+                "NewsData.io reported a quota or request limit for this run.",
+                icon="⚠️",
+            )
+
+    for err in errors:
+        st.markdown(f"<div style='font-size:12px; color:#B45309;'>• {err}</div>", unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# 10. PAGE TITLE
+# ---------------------------------------------------------
+
+st.markdown(f"""
+<div class="briefing-hero">
+    <div class="briefing-kicker"><span class="briefing-kicker-dot"></span> Live Audit Intelligence</div>
+    <div class="briefing-title">Global Banking Risk &amp; Controls Briefing</div>
+    <div class="briefing-subtitle">Fresh intelligence across transformation, regulation, people and global banking — organized for rapid executive review.</div>
+    <div class="briefing-stats">
+        <div class="brief-stat"><div class="brief-stat-number">{len(filtered)}</div><div class="brief-stat-label">Stories</div></div>
+        <div class="brief-stat"><div class="brief-stat-number">{len(set(a["source"] for a in filtered)) if filtered else 0}</div><div class="brief-stat-label">Sources</div></div>
+        <div class="brief-stat"><div class="brief-stat-number">4</div><div class="brief-stat-label">Themes</div></div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# 11. RENDER HELPERS
+# ---------------------------------------------------------
+
+def render_featured(article):
+    color = CATEGORY_COLORS.get(article["category"], "#374151")
+    label = CATEGORY_DISPLAY.get(article["category"], article["category"])
+    rel_time = format_relative_time(article["publishedAt"])
+
+    if article["image_url"]:
+        bg = f'linear-gradient(180deg, rgba(17,24,39,0) 35%, rgba(17,24,39,0.88) 100%), url(\'{article["image_url"]}\')'
+    else:
+        bg = 'linear-gradient(135deg, #1E3A8A, #2563EB)'
+
+    st.markdown(f"""
+    <div class="featured-hero" style="background-image: {bg};">
+        <div class="featured-badge" style="background: {color};">{label}</div>
+        <div class="featured-text">
+            <div class="featured-title">{article['title']}</div>
+            <div class="featured-meta">By {article['source']} &nbsp;·&nbsp; {rel_time}</div>
+        </div>
+        <a href="{article['url']}" target="_blank" class="featured-link-overlay"></a>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_category_grid(category, rows):
+    """Render one category as a dense, responsive two-card-per-row newsroom grid."""
+    if not rows:
+        return
+
+    color = CATEGORY_COLORS.get(category, "#2563EB")
+    label = CATEGORY_DISPLAY.get(category, category)
+
+    cards = []
+    for article in rows:
+        title = escape(str(article.get("title") or "Untitled story"))
+        description = escape(str(article.get("description") or "Independent institutional briefing coverage."))
+        source = escape(str(article.get("source") or "Unknown source"))
+        url = escape(str(article.get("url") or "#"), quote=True)
+        rel_time = escape(str(format_relative_time(article.get("publishedAt", ""))))
+        image_url = escape(str(article.get("image_url") or ""), quote=True)
+        fallback = placeholder_data_uri(color)
+
+        if image_url:
+            image = (
+                f'<img class="category-card-image" src="{image_url}" alt="" '
+                f'loading="lazy" referrerpolicy="no-referrer" '
+                f'onerror="this.onerror=null;this.src=\'{fallback}\';" />'
+            )
+        else:
+            image = f'<img class="category-card-image" src="{fallback}" alt="" />'
+
+        cards.append(f"""
+        <article class="category-card">
+            <a href="{url}" target="_blank" rel="noopener noreferrer" class="category-card-image-wrap">
+                {image}
+            </a>
+            <div class="category-card-body">
+                <div class="category-card-meta">
+                    <span class="badge" style="background:{color};">{escape(label)}</span>
+                    <span class="insight-date">{rel_time}</span>
+                </div>
+                <a href="{url}" target="_blank" rel="noopener noreferrer" class="category-card-title-link">
+                    <div class="category-card-title">{title}</div>
+                </a>
+                <div class="category-card-desc">{description}</div>
+                <div class="category-card-footer">
+                    <span class="source-chip">{source}</span>
+                    <a href="{url}" target="_blank" rel="noopener noreferrer" class="read-link">Read source ↗</a>
+                </div>
+            </div>
+        </article>
+        """)
+
+    st.markdown(f"""
+    <section class="category-section">
+        <div class="category-heading">
+            <div class="category-heading-left">
+                <span class="category-accent" style="background:{color};"></span>
+                <span class="category-name">{escape(label)}</span>
+                <span class="category-count">{len(rows):02d} stories</span>
+            </div>
+        </div>
+        <div class="category-grid">
+            {''.join(cards)}
+        </div>
+    </section>
+    """, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# 12. MAIN LAYOUT
+# ---------------------------------------------------------
+# The feed is intentionally category-first: no tabs and no long single-column
+# stream. Each theme gets its own section and stories are displayed two-up.
+
+col_main, col_side = st.columns([2.3, 1], gap="large")
+
+with col_main:
+    if not filtered:
+        st.markdown("""
+        <div class="empty-state-panel">
+            <div style="font-size:18px;font-weight:800;color:#111827;">No briefing stories found</div>
+            <div style="font-size:13.5px;color:#4B5563;margin-top:6px;">
+                Try expanding the lookback window or lowering the relevance floor above.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Preserve the four editorial categories and never mix their stories.
+        # This makes the landing page immediately scannable.
+        for category in selected_categories:
+            category_rows = [a for a in filtered if a["category"] == category]
+            category_rows.sort(key=lambda x: x.get("publishedAt", ""), reverse=True)
+            render_category_grid(category, category_rows)
+
+with col_side:
+    render_market_panel()
+    render_priority_alerts(filtered)
+    render_risk_radar(filtered)
+    render_source_panel(filtered)
+
+    active_categories = ", ".join(CATEGORY_DISPLAY.get(c, c) for c in selected_categories) or "None selected"
+    st.markdown(f"""
+    <div class="side-panel">
+        <div class="side-panel-title">⚙️ Active Filters</div>
+        <div class="filter-row"><span>Categories</span><span class="filter-value">{active_categories}</span></div>
+        <div class="filter-row"><span>Lookback</span><span class="filter-value">Last {lookback_days}d</span></div>
+        <div class="filter-row"><span>Relevance floor</span><span class="filter-value">{min_relevance}</span></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if filtered:
+        today_count = sum(1 for a in filtered if format_relative_time(a["publishedAt"]) == "Today")
+        unique_sources = len(set(a["source"] for a in filtered))
+    else:
+        today_count, unique_sources = 0, 0
+
+    st.markdown(f"""
+    <div class="side-panel">
+        <div class="side-panel-title">📊 Feed Pulse</div>
+        <div class="pulse-row"><span>Total Stories</span><span class="pulse-value">{len(filtered)}</span></div>
+        <div class="pulse-row"><span>Published Today</span><span class="pulse-value">{today_count}</span></div>
+        <div class="pulse-row"><span>Unique Sources</span><span class="pulse-value">{unique_sources}</span></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="cta-panel">
+        <div class="cta-title">Audit Intelligence Brief</div>
+        <div class="cta-desc">Export this briefing as a CSV for Audit Committee and Chief Risk Officer distribution.</div>
+    </div>
+    """, unsafe_allow_html=True)
+    if filtered:
+        df_export = pd.DataFrame(filtered)
+        csv = df_export.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Briefing CSV",
+            data=csv,
+            file_name=f"audit_intel_briefing_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="download_csv_sidebar",
+        )
+
+
+# 13. FOOTER
+# ---------------------------------------------------------
+
+st.markdown("""
+<div class="app-footer">
+    <div>
+        <div class="footer-brand"><span>📡</span> Audit Intelligence</div>
+        <div class="footer-tagline">Curated intelligence feed for Audit Committees and Chief Risk Officers across banking and financial services.</div>
+    </div>
+    <div class="footer-links">
+        <span>About Us</span>
+        <span>Contact</span>
+        <span>Privacy Policy</span>
+        <span>Terms of Service</span>
+    </div>
+</div>
+<div class="footer-copyright">© 2026 Audit Intelligence &middot; Internal tool &middot; Not for external distribution</div>
+""", unsafe_allow_html=True)
