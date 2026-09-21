@@ -15,6 +15,7 @@ from html import escape
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from textwrap import dedent
 
 import pandas as pd
 import requests
@@ -1362,20 +1363,23 @@ def render_category_grid(category, rows):
         </article>
         """)
 
-    st.markdown(f"""
-    <section class="category-section">
-        <div class="category-heading">
-            <div class="category-heading-left">
-                <span class="category-accent" style="background:{color};"></span>
-                <span class="category-name">{escape(label)}</span>
-                <span class="category-count">{len(rows):02d} stories</span>
+    st.markdown(
+        dedent(f"""
+        <section class="category-section">
+            <div class="category-heading">
+                <div class="category-heading-left">
+                    <span class="category-accent" style="background:{color};"></span>
+                    <span class="category-name">{escape(label)}</span>
+                    <span class="category-count">{len(rows):02d} stories</span>
+                </div>
             </div>
-        </div>
-        <div class="category-grid">
-            {''.join(cards)}
-        </div>
-    </section>
-    """, unsafe_allow_html=True)
+            <div class="category-grid">
+                {''.join(cards)}
+            </div>
+        </section>
+        """).strip(),
+        unsafe_allow_html=True,
+    )
 
 
 # ---------------------------------------------------------
