@@ -33,3 +33,6 @@ streamlit run app.py
 ```
 
 The application reads `NEWSDATA_API_KEY` from Streamlit secrets or the server environment.
+
+
+<!-- Streamlit fix trigger -->
