@@ -81,10 +81,6 @@ QUERIES_NEWSDATA = {
         'bank AND ("chief risk officer" OR "audit committee")',
         'bank AND (appointed OR resigns OR board)',
     ],
-    "Cyber and Tech": [
-        'bank AND (cybersecurity OR "cyber attack" OR ransomware OR "data breach")',
-        'bank AND ("technology risk" OR cloud OR "artificial intelligence")',
-    ],
     "Global Banks": [
         'HSBC OR JPMorgan OR Citigroup OR Barclays',
         'UBS OR "Deutsche Bank" OR "Goldman Sachs" OR "Standard Chartered"',
