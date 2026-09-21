@@ -1192,7 +1192,7 @@ params_key = (lookback_days, min_relevance, fuzzy_threshold,
 if ("news_loaded" not in st.session_state) or (st.session_state.get("params_key") != params_key):
     with st.spinner("Compiling the audit intelligence briefing..."):
         articles, errors, stats = load_news(
-            {"newsdata": api_keys["newsdata"]},
+            api_keys["newsdata"],
             lookback_days,
             min_relevance,
             fuzzy_threshold,
