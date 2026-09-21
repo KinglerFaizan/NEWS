@@ -21,16 +21,16 @@ import streamlit as st
 
 import news_providers as npv
 
-# Optional config.py — any subset of the three keys may be defined there.
-CONFIG_KEYS = {}
-try:
-    import config as _cfg
-    for _name in ("API_KEY", "NEWSAPI_KEY", "APITUBE_KEY", "APITUBE_API_KEY",
-                  "NEWSDATA_KEY", "NEWSDATA_API_KEY"):
-        if hasattr(_cfg, _name):
-            CONFIG_KEYS[_name] = getattr(_cfg, _name)
-except ImportError:
-    pass
+# Server-side NewsData.io credential only. Never render this value in the UI.
+def get_newdata_api_key():
+    key = os.getenv("NEWSDATA_API_KEY") or os.getenv("NEWSDATA_KEY")
+    if not key:
+        try:
+            key = st.secrets.get("NEWSDATA_API_KEY") or st.secrets.get("NEWSDATA_KEY")
+        except Exception:
+            key = None
+    return (key or "").strip()
+
 
 
 # ---------------------------------------------------------
@@ -634,134 +634,8 @@ def _lookup_secret(*names):
 
 
 def get_api_keys():
-    """Resolve a key for each of the three providers. Any may be blank."""
-    return {
-        "newsapi": _lookup_secret("NEWSAPI_KEY", "API_KEY"),
-        "apitube": _lookup_secret("APITUBE_KEY", "APITUBE_API_KEY"),
-        "newsdata": _lookup_secret("NEWSDATA_KEY", "NEWSDATA_API_KEY"),
-    }
-
-
-def audit_relevance(text):
-    """Simple, transparent audit relevance score."""
-    score = 0
-    for term in AUDIT_TERMS:
-        if term in text:
-            score += 5
-
-    for term in [
-        "internal audit", "audit committee", "internal controls",
-        "control deficiency", "regulatory enforcement",
-        "model risk", "financial crime",
-    ]:
-        if term in text:
-            score += 10
-
-    return min(score, 100)
-
-
-def classify_article(article):
-    """Classify using transparent keyword scoring."""
-    text = " ".join([
-        article.get("title") or "",
-        article.get("description") or "",
-        article.get("content") or "",
-    ]).lower()
-
-    scores = {}
-    for category, terms in CATEGORY_TERMS.items():
-        score = 0
-        for term in terms:
-            if term in text:
-                score += 1
-        scores[category] = score
-
-    best_category = max(scores, key=scores.get)
-    if scores[best_category] == 0:
-        best_category = "Regulation"
-
-    return best_category, scores[best_category]
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_news(api_keys, lookback_days, min_relevance, fuzzy_threshold, categories):
-    """
-    Pull from every configured provider, dedupe across them, then score.
-    Fetching/normalizing/deduping lives in news_providers.py; this function
-    only applies the audit-specific relevance and category logic.
-    """
-    records, errors, fetch_stats = npv.fetch_all(
-        api_keys=dict(api_keys),
-        lookback_days=lookback_days,
-        categories=list(categories) if categories else None,
-        fuzzy_threshold=fuzzy_threshold,
-    )
-
-    cleaned = []
-    dropped_low_relevance = 0
-
-    for rec in records:
-        text = " ".join([
-            rec.get("title") or "",
-            rec.get("description") or "",
-            rec.get("content") or "",
-        ]).lower()
-
-        relevance = audit_relevance(text)
-        if relevance < min_relevance:
-            dropped_low_relevance += 1
-            continue
-
-        category, category_score = classify_article(rec)
-
-        cleaned.append({
-            "category": category,
-            "audit_relevance": relevance,
-            "category_score": category_score,
-            "title": rec.get("title") or "Untitled",
-            "description": rec.get("description") or "",
-            "source": rec.get("source") or "Institutional Source",
-            "publishedAt": rec.get("published_at") or "",
-            "url": rec.get("url") or "",
-            "author": rec.get("author") or "",
-            "image_url": rec.get("image_url") or "",
-        })
-
-    cleaned.sort(key=lambda x: (x["audit_relevance"], x["publishedAt"]), reverse=True)
-
-    stats = dict(fetch_stats)
-    stats["dropped_low_relevance"] = dropped_low_relevance
-    stats["kept"] = len(cleaned)
-    return cleaned, errors, stats
-
-
-def format_relative_time(pub_date_str):
-    if not pub_date_str:
-        return "Recent"
-    try:
-        clean_str = pub_date_str.replace("Z", "+00:00")
-        dt = datetime.fromisoformat(clean_str)
-        now = datetime.now(timezone.utc)
-        diff = now - dt
-        days = diff.days
-        if days == 0:
-            return "Today"
-        elif days == 1:
-            return "1 day ago"
-        elif days < 7:
-            return f"{days} days ago"
-        elif days < 14:
-            return "1 week ago"
-        else:
-            return f"{days // 7} weeks ago"
-    except Exception:
-        return pub_date_str[:10] if len(pub_date_str) >= 10 else "Recent"
-
-
-def ist_now_str():
-    stamp = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
-    return stamp.strftime("%d %b %Y, %H:%M IST")
-
+    """Return only the server-side NewsData.io credential."""
+    return {"newsdata": get_newdata_api_key()}
 
 # ---------------------------------------------------------
 # 4. LIVE MARKET SNAPSHOT
@@ -1029,68 +903,40 @@ if hard_refresh:
 # 8. DATA CONTROLS
 # ---------------------------------------------------------
 
-with st.expander("⚙️  Data Sources, Filters & Controls", expanded=(not any(api_keys.values()))):
-
+with st.expander("⚙️  Data Sources, Filters & Controls", expanded=False):
     st.markdown(
         '<div style="font-size:12.5px;font-weight:700;color:#0B1220;margin-bottom:2px;">'
-        'News provider keys'
+        'News source'
         '</div>'
         '<div style="font-size:11.5px;color:#6B7280;margin-bottom:8px;">'
-        'The two primary services run together on every refresh. '
-        'The reserve service stays idle and only engages if both primaries hit their limits.'
+        'NewsData.io is the sole news provider. The API credential is stored server-side '
+        'and is never displayed or accepted in the UI.'
         '</div>',
         unsafe_allow_html=True,
     )
-
-    for pid in list(npv.PRIMARY_PROVIDERS) + list(npv.RESERVE_PROVIDERS):
-        meta = npv.PROVIDERS[pid]
-        role = "Primary" if meta["tier"] == 1 else "Reserve (standby)"
-        label = f'{meta["label"]} · {role}'
-
-        if api_keys[pid]:
-            st.text_input(
-                label, value="•" * 16, disabled=True,
-                key=f"key_display_{pid}",
-                help="Loaded from config.py / environment / secrets.",
-            )
-        else:
-            api_keys[pid] = st.text_input(
-                label,
-                type="password",
-                placeholder="Paste key (optional)...",
-                key=f"key_input_{pid}",
-                help=f"Free key: {meta['signup']}",
-            )
+    if api_keys["newsdata"]:
+        st.success("NewsData.io connected", icon="✓")
+    else:
+        st.warning("NewsData.io API key is not configured on the server.", icon="⚠️")
 
     st.divider()
-
     ctrl_a, ctrl_b, ctrl_c = st.columns(3)
-
     with ctrl_a:
         lookback_days = st.slider("Lookback Window (Days)", min_value=1, max_value=30, value=7)
-
     with ctrl_b:
         min_relevance = st.slider(
-            "Minimum Audit Relevance",
-            min_value=0, max_value=40, value=5, step=5,
+            "Minimum Audit Relevance", min_value=0, max_value=40, value=5, step=5,
             help="Lower this to widen the feed; raise it to keep only high-signal stories.",
         )
-
     with ctrl_c:
         dedup_mode = st.select_slider(
-            "Duplicate Removal",
-            options=["Loose", "Balanced", "Aggressive"],
+            "Duplicate Removal", options=["Loose", "Balanced", "Aggressive"],
             value="Balanced",
-            help=(
-                "Loose keeps near-identical rewrites as separate stories. "
-                "Aggressive merges reworded headlines about the same event."
-            ),
+            help="Controls how aggressively similar headlines are merged.",
         )
     fuzzy_threshold = {"Loose": 0.85, "Balanced": 0.72, "Aggressive": 0.58}[dedup_mode]
-
     selected_categories = st.multiselect(
-        "Active Categories",
-        options=list(CATEGORIES.keys()),
+        "Active Categories", options=list(CATEGORIES.keys()),
         default=list(CATEGORIES.keys()),
         format_func=lambda c: CATEGORY_DISPLAY.get(c, c),
     )
@@ -1098,7 +944,7 @@ with st.expander("⚙️  Data Sources, Filters & Controls", expanded=(not any(a
 if not any(api_keys.values()):
     st.info(
         "💡 Add at least one provider key above to load the briefing. "
-        "Supplying all three (NewsAPI.org, APITube.io, NewsData.io) gives the widest coverage."
+        "Supplying all three (NewsData.io) gives the widest coverage."
     )
     st.stop()
 
@@ -1141,7 +987,7 @@ with st.expander("🔎 Ingestion Diagnostics", expanded=False):
         rows = ""
 
         for pid, meta in npv.PROVIDERS.items():
-            role = "primary" if meta["tier"] == 1 else "reserve"
+            role = "active"
             s = pp.get(pid, {})
 
             if not api_keys.get(pid):
