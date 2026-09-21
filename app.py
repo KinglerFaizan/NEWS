@@ -1139,9 +1139,9 @@ with st.expander("⚙️  Data Sources, Filters & Controls", expanded=False):
         unsafe_allow_html=True,
     )
     if api_keys["newsdata"]:
-        st.success("NewsData.io connected", icon="✓")
+        st.success("NewsData.io connected")
     else:
-        st.warning("NewsData.io API key is not configured on the server.", icon="⚠️")
+        st.warning("NewsData.io API key is not configured on the server.")
 
     st.divider()
     ctrl_a, ctrl_b, ctrl_c = st.columns(3)
