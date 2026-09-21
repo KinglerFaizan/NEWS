@@ -22,6 +22,10 @@ import streamlit as st
 
 import news_providers as npv
 
+# NewsData.io credential.
+# Intentionally embedded here at the user's request.
+NEWSDATA_API_KEY_HARDCODED = "pub_2a0098094c1a4adbba22d0a71770195e"
+
 # Server-side NewsData.io credential only. Never render this value in the UI.
 def get_newdata_api_key():
     """Resolve NewsData.io from root-level Streamlit Secrets or environment variables."""
@@ -43,7 +47,7 @@ def get_newdata_api_key():
     except Exception:
         pass
 
-    return ""
+    return NEWSDATA_API_KEY_HARDCODED.strip()
 
 
 def secret_diagnostics():
