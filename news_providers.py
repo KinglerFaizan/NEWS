@@ -70,31 +70,23 @@ def _is_quota_error(message: str, status_code=None) -> bool:
 QUERIES_NEWSDATA = {
     "Transformation": [
         'bank AND ("digital transformation" OR "core banking")',
-        'banking AND ("artificial intelligence" OR "generative AI" OR automation)',
-        'bank AND (cloud OR "digital banking" OR fintech)',
-        'bank AND ("technology modernization" OR "data analytics")',
-        'bank AND ("cybersecurity" OR "operational resilience")',
+        'banking AND ("artificial intelligence" OR cloud OR automation)',
+        'bank AND ("digital banking" OR fintech OR cybersecurity)',
     ],
     "Regulation": [
         'bank AND (regulation OR compliance OR supervision)',
         'bank AND (penalty OR fine OR enforcement OR sanctions)',
-        'bank AND ("money laundering" OR AML OR KYC)',
-        'bank AND (fraud OR "financial crime" OR misconduct)',
-        'RBI AND (bank OR banking) AND (guidelines OR circular OR penalty)',
-        'bank AND ("capital requirements" OR "risk management")',
+        'bank AND ("money laundering" OR AML OR KYC OR fraud)',
     ],
     "People": [
-        'bank AND ("chief risk officer" OR "chief audit executive")',
-        'bank AND ("audit committee" OR "internal audit")',
+        'bank AND ("chief risk officer" OR "audit committee")',
+        'bank AND ("internal audit" OR "chief audit executive")',
         'bank AND (appointed OR resigns OR "new CEO" OR board)',
-        'bank AND ("chief compliance officer" OR "risk officer")',
     ],
     "Global Banks": [
         'HSBC OR JPMorgan OR Citigroup OR Barclays',
         'UBS OR "Deutsche Bank" OR "Goldman Sachs" OR "Standard Chartered"',
-        'Bank of America OR Wells Fargo OR Morgan Stanley',
-        'BNP Paribas OR Santander OR ING OR "Credit Suisse"',
-        'bank AND (global OR international) AND (risk OR compliance)',
+        'Bank of America OR Wells Fargo OR Morgan Stanley OR Santander',
     ],
 }
 PROVIDER_QUERIES = {"newsdata": QUERIES_NEWSDATA}
@@ -123,7 +115,8 @@ def fetch_newsdata(query, api_key, from_date, page, cfg):
         "apikey": api_key,
         "q": query[: cfg["max_query_len"]],
         "language": "en",
-        "category": "business,technology,politics,world",
+        "category": "business,technology",
+        "size": 10,
     }
     resp = requests.get(cfg["endpoint"], params=params, timeout=DEFAULT_TIMEOUT)
     try:
@@ -473,7 +466,7 @@ def _run_tier(provider_ids, api_keys, from_date, categories, max_workers,
 
 
 def fetch_all(api_keys: dict, lookback_days: int = 7, categories=None,
-              fuzzy_threshold: float = 0.72, max_workers: int = 6):
+              fuzzy_threshold: float = 0.72, max_workers: int = 3):
     from_date = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
     per_provider = {
         pid: {"requests": 0, "articles": 0, "errors": 0, "quota_hits": 0, "used": False}
