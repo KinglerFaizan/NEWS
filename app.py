@@ -711,6 +711,113 @@ def get_api_keys():
     """Return only the server-side NewsData.io credential."""
     return {"newsdata": get_newdata_api_key()}
 
+def format_relative_time(value):
+    """Format an article timestamp for the newsroom cards."""
+    if not value:
+        return "Recent"
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        minutes = max(0, int((now - dt.astimezone(timezone.utc)).total_seconds() / 60))
+        if minutes < 60:
+            return f"{minutes}m ago"
+        if minutes < 1440:
+            return f"{minutes // 60}h ago"
+        if minutes < 2880:
+            return "Yesterday"
+        return f"{minutes // 1440}d ago"
+    except Exception:
+        return "Recent"
+
+
+def classify_category(title, description, hint=None):
+    """Classify an article into one of the four newsroom categories."""
+    if hint in CATEGORIES:
+        return hint
+
+    text = f"{title} {description}".lower()
+    scores = {
+        category: sum(1 for term in terms if term in text)
+        for category, terms in CATEGORY_TERMS.items()
+    }
+    return max(scores, key=scores.get) if max(scores.values(), default=0) else "Transformation"
+
+
+def calculate_audit_relevance(title, description):
+    """Return a simple 0-40 audit-relevance signal score."""
+    text = f"{title} {description}".lower()
+    score = 0
+    for term in AUDIT_TERMS:
+        if term in text:
+            score += 2 if " " in term else 1
+    return min(score, 40)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_news(api_key, lookback_days, min_relevance, fuzzy_threshold, selected_categories):
+    """Fetch, classify and filter the NewsData.io briefing."""
+    categories = tuple(selected_categories)
+    raw, errors, stats = npv.fetch_all(
+        {"newsdata": api_key},
+        lookback_days=lookback_days,
+        categories=list(categories),
+        fuzzy_threshold=fuzzy_threshold,
+        max_workers=6,
+    )
+
+    articles = []
+    for row in raw:
+        title = str(row.get("title") or "").strip()
+        if not title:
+            continue
+
+        description = str(
+            row.get("description") or row.get("content") or ""
+        ).strip()
+
+        category = classify_category(
+            title,
+            description,
+            row.get("category_hint"),
+        )
+        if category not in categories:
+            continue
+
+        relevance = calculate_audit_relevance(title, description)
+        if relevance < min_relevance:
+            continue
+
+        articles.append({
+            "title": title,
+            "description": description,
+            "url": str(row.get("url") or "#"),
+            "image_url": str(row.get("image_url") or ""),
+            "source": str(row.get("source") or "Unknown"),
+            "publishedAt": row.get("published_at") or "",
+            "category": category,
+            "audit_relevance": relevance,
+        })
+
+    articles.sort(
+        key=lambda item: (
+            item.get("publishedAt") or "",
+            item.get("audit_relevance", 0),
+        ),
+        reverse=True,
+    )
+
+    stats = dict(stats or {})
+    stats["dropped_low_relevance"] = max(
+        0,
+        int(stats.get("unique", 0)) - len(articles),
+    )
+    stats["kept"] = len(articles)
+
+    return articles, errors, stats
+
+
 # ---------------------------------------------------------
 # 4. LIVE MARKET SNAPSHOT
 # ---------------------------------------------------------
