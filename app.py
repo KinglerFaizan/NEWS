@@ -1416,6 +1416,28 @@ st.markdown(f"""
 
 
 # ---------------------------------------------------------
+def classify_category(title, description, hint=None):
+    """Classify banking/audit news and reject generic consumer/technology stories."""
+    text = f"{title} {description}".lower()
+
+    # Hard banking relevance gate.
+    banking_hits = sum(
+        1 for term in BANKING_CONTEXT_TERMS
+        if _term_present(text, term)
+    )
+    if banking_hits == 0:
+        return None
+
+    scores = {
+        category: sum(1 for term in terms if _term_present(text, term))
+        for category, terms in CATEGORY_TERMS.items()
+    }
+    best_category = max(scores, key=scores.get)
+    if scores[best_category] == 0:
+        return None
+    return best_category
+
+
 # 7. SIDEBAR CONTROL CENTER
 # ---------------------------------------------------------
 
