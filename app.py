@@ -11,6 +11,7 @@ variables, Streamlit secrets, or the in-page fields.
 """
 
 import os
+import re
 from html import escape
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -846,17 +847,19 @@ ALERT_TERMS = [
 ]
 
 BANKING_CONTEXT_TERMS = [
-    "bank", "banking", "banker", "bankers", "banking industry", "commercial bank",
+    "banking", "banker", "bankers", "banking industry", "commercial bank",
     "retail bank", "investment bank", "central bank", "private bank", "public sector bank",
-    "financial institution", "financial institutions", "lender", "lenders", "nbfc",
-    "non-bank financial company", "credit union", "deposit", "deposits", "loan", "loans",
-    "mortgage", "payments", "payment bank", "rbi", "basel", "capital adequacy",
-    "credit risk", "liquidity", "asset quality", "financial crime", "aml", "kyc",
-    "money laundering", "sanctions", "banking regulator", "bank regulator",
-    "chief risk officer", "chief audit executive", "internal audit", "audit committee",
-    "bank of america", "jpmorgan", "jpmorgan chase", "citigroup", "citi", "hsbc",
-    "barclays", "deutsche bank", "ubs", "bnp paribas", "santander", "standard chartered",
-    "goldman sachs", "morgan stanley", "wells fargo", "icbc", "mufg", "mizuho",
+    "financial institution", "financial institutions", "financial services",
+    "lender", "lenders", "nbfc", "non-bank financial company", "credit union",
+    "deposit", "deposits", "loan", "loans", "mortgage", "payment bank",
+    "rbi", "basel", "capital adequacy", "credit risk", "liquidity", "asset quality",
+    "financial crime", "aml", "kyc", "money laundering", "sanctions",
+    "banking regulator", "bank regulator", "chief risk officer",
+    "chief audit executive", "internal audit", "audit committee",
+    "bank of america", "jpmorgan", "jpmorgan chase", "citigroup", "citi",
+    "hsbc", "barclays", "deutsche bank", "ubs", "bnp paribas", "santander",
+    "standard chartered", "goldman sachs", "morgan stanley", "wells fargo",
+    "icbc", "mufg", "mizuho",
 ]
 
 CATEGORY_TERMS = {
@@ -883,6 +886,40 @@ CATEGORY_TERMS = {
         "wells fargo", "ing", "icbc", "mufg", "mizuho",
     ],
 }
+
+
+def _term_present(text, term):
+    """Match a term as a phrase/word, not as an arbitrary substring."""
+    return bool(re.search(r"(?<![a-z0-9])" + re.escape(term.lower()) + r"(?![a-z0-9])", text))
+
+
+def classify_category(title, description, hint=None):
+    """Classify banking/audit news and reject generic consumer/technology stories."""
+    text = f"{title} {description}".lower()
+
+    # Do NOT treat the word 'bank' alone as banking context.
+    # This prevents 'power bank', 'powerbank', etc. from entering the feed.
+    banking_hits = sum(
+        1 for term in BANKING_CONTEXT_TERMS
+        if _term_present(text, term)
+    )
+
+    if banking_hits == 0:
+        return None
+
+    scores = {
+        category: sum(
+            1 for term in terms
+            if _term_present(text, term)
+        )
+        for category, terms in CATEGORY_TERMS.items()
+    }
+
+    best_category = max(scores, key=scores.get)
+    if scores[best_category] == 0:
+        return None
+
+    return best_category
 
 
 def placeholder_data_uri(hex_color="#94A3B8"):
