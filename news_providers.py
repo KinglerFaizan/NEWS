@@ -35,7 +35,7 @@ PROVIDERS = {
     },
 }
 
-DEFAULT_TIMEOUT = 25
+DEFAULT_TIMEOUT = 15
 
 PRIMARY_PROVIDERS = ["newsdata"]
 RESERVE_PROVIDERS = []
@@ -69,24 +69,20 @@ def _is_quota_error(message: str, status_code=None) -> bool:
 
 QUERIES_NEWSDATA = {
     "Transformation": [
-        'bank AND ("digital transformation" OR "core banking")',
-        'banking AND ("artificial intelligence" OR cloud OR automation)',
-        'bank AND ("digital banking" OR fintech OR cybersecurity)',
+        'bank AND ("digital transformation" OR "core banking" OR "digital banking")',
+        'banking AND ("artificial intelligence" OR cloud OR automation OR cybersecurity)',
     ],
     "Regulation": [
-        'bank AND (regulation OR compliance OR supervision)',
-        'bank AND (penalty OR fine OR enforcement OR sanctions)',
-        'bank AND ("money laundering" OR AML OR KYC OR fraud)',
+        'bank AND (regulation OR compliance OR supervision OR enforcement)',
+        'bank AND ("money laundering" OR AML OR KYC OR sanctions OR penalty)',
     ],
     "People": [
-        'bank AND ("chief risk officer" OR "audit committee")',
-        'bank AND ("internal audit" OR "chief audit executive")',
-        'bank AND (appointed OR resigns OR "new CEO" OR board)',
+        'bank AND ("chief risk officer" OR "audit committee" OR "internal audit")',
+        'bank AND (appointed OR resigns OR "new CEO" OR board OR leadership)',
     ],
     "Global Banks": [
-        'HSBC OR JPMorgan OR Citigroup OR Barclays',
-        'UBS OR "Deutsche Bank" OR "Goldman Sachs" OR "Standard Chartered"',
-        'Bank of America OR Wells Fargo OR Morgan Stanley OR Santander',
+        'HSBC OR JPMorgan OR Citigroup OR Barclays OR UBS OR "Deutsche Bank"',
+        'Goldman Sachs OR "Standard Chartered" OR "Bank of America" OR Wells Fargo OR Santander',
     ],
 }
 PROVIDER_QUERIES = {"newsdata": QUERIES_NEWSDATA}
@@ -466,7 +462,7 @@ def _run_tier(provider_ids, api_keys, from_date, categories, max_workers,
 
 
 def fetch_all(api_keys: dict, lookback_days: int = 7, categories=None,
-              fuzzy_threshold: float = 0.72, max_workers: int = 3):
+              fuzzy_threshold: float = 0.72, max_workers: int = 4):
     from_date = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
     per_provider = {
         pid: {"requests": 0, "articles": 0, "errors": 0, "quota_hits": 0, "used": False}
