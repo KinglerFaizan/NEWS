@@ -44,10 +44,10 @@ def get_newsapi_key():
 
 
 def secret_diagnostics():
-    """Return safe secret-state diagnostics; never return a secret value."""
+    """Return safe NewsAPI secret-state diagnostics; never return a secret value."""
     env_present = any(
         bool(os.environ.get(name, "").strip())
-        for name in ("NEWSDATA_API_KEY", "NEWSDATA_KEY")
+        for name in ("NEWSAPI_KEY", "NEWS_API_KEY")
     )
 
     secret_keys = []
@@ -63,7 +63,7 @@ def secret_diagnostics():
         for key in secret_keys
     }
     named_secret_present = any(
-        name in normalized for name in ("NEWSDATA_API_KEY", "NEWSDATA_KEY")
+        name in normalized for name in ("NEWSAPI_KEY", "NEWS_API_KEY")
     )
 
     return secrets_available, env_present, named_secret_present, secret_keys
@@ -1439,6 +1439,7 @@ def classify_category(title, description, hint=None):
 # ---------------------------------------------------------
 
 api_keys = get_api_keys()
+hard_refresh = False
 
 with st.sidebar:
     active_view = st.session_state.get("active_view", "All News")
@@ -1533,7 +1534,7 @@ with st.sidebar:
         help="Controls how aggressively similar headlines are merged.",
     )
 
-    # Keep all four categories available to the main newsroom navigation.
+    # Keep all five intelligence streams available to the main newsroom navigation.
     selected_categories = list(CATEGORIES.keys())
 
     fuzzy_threshold = {
