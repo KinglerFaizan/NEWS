@@ -1,6 +1,0 @@
-{
-  "name":"audit-intelligence-new-news",
-  "private":true,
-  "type":"module",
-  "dependencies":{"@netlify/blobs":"latest","@netlify/functions":"latest"}
-}

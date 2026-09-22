@@ -1,9 +1,0 @@
-{
-  "name": "audit-intelligence-netlify",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "@netlify/blobs": "latest",
-    "@netlify/functions": "latest"
-  }
-}
