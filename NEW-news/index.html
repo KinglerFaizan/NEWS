@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Audit Intelligence — adaptive global banking risk and controls briefing.">
+  <title>Audit Intelligence | Adaptive Banking Briefing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">AI</div>
+        <div><div class="brand-name">Audit <span>Intelligence</span></div><div class="brand-sub">Adaptive banking briefing</div></div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="All News">⌂ <span>All News</span></button>
+        <button class="nav-item" data-view="Transformation">▦ <span>Transformation</span></button>
+        <button class="nav-item" data-view="Regulation">◈ <span>Regulation</span></button>
+        <button class="nav-item" data-view="People">♧ <span>People</span></button>
+        <button class="nav-item" data-view="Global Banks">◎ <span>Global Banks</span></button>
+      </nav>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-title">ADAPTIVE MODEL</div>
+      <div class="learning-card"><div class="learning-dot"></div><div><strong>Self-learning active</strong><p>Your feedback changes future story ordering.</p></div></div>
+      <div class="model-stats"><span id="model-likes">0 likes</span><span id="model-dislikes">0 not-for-me</span></div>
+      <div class="sidebar-divider"></div>
+      <button id="refresh" class="refresh-btn">↻ Refresh briefing</button>
+      <div class="sidebar-foot">NewsData.io · server-side API<br>Feedback stored per browser profile</div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div><div class="eyebrow"><span class="live-dot"></span> LIVE INTELLIGENCE</div><h1>Global Banking Risk &amp; Controls Briefing</h1><p>News-first intelligence for audit, risk, compliance and banking technology teams.</p></div>
+        <div class="user-chip"><div class="user-label">Prepared for</div><div class="user-name">Pragati · Internal Audit</div><div id="updated" class="user-time">Loading feed…</div></div>
+      </header>
+      <section class="hero-strip">
+        <div><div class="hero-kicker">ADAPTIVE NEWSROOM</div><div class="hero-title">The briefing learns what matters to you.</div><div class="hero-copy">Like a story you want more of. Mark a story “Not for me” to teach the model what to suppress. The model re-ranks future articles without changing the underlying news feed.</div></div>
+        <div class="hero-metrics"><div><span id="story-count">—</span><small>stories</small></div><div><span id="source-count">—</span><small>sources</small></div></div>
+      </section>
+      <section id="featured" class="featured"></section>
+      <div class="section-head"><div><div class="section-title">Latest Stories</div><div id="active-stream" class="section-sub">Adaptive ranking across all banking categories</div></div><button id="clear-learning" class="ghost-btn">Reset learning</button></div>
+      <section id="feed" class="feed"></section>
+      <div id="status" class="status"></div>
+    </main>
+  </div>
+  <template id="story-template">
+    <article class="story-card">
+      <div class="story-image-wrap"><img class="story-image" alt="" loading="lazy"><div class="story-category"></div></div>
+      <div class="story-body">
+        <div class="story-meta"><span class="story-source"></span><span class="story-time"></span></div>
+        <h3 class="story-title"></h3><p class="story-desc"></p>
+        <div class="story-actions"><a class="read-link" target="_blank" rel="noopener noreferrer">Read article ↗</a><div class="feedback"><button class="like-btn">♡ Like</button><button class="dislike-btn">× Not for me</button></div></div>
+      </div>
+    </article>
+  </template>
+  <script src="/app.js"></script>
+</body>
+</html>
