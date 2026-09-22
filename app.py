@@ -845,6 +845,20 @@ ALERT_TERMS = [
     "whistleblower", "settlement",
 ]
 
+BANKING_CONTEXT_TERMS = [
+    "bank", "banking", "banker", "bankers", "banking industry", "commercial bank",
+    "retail bank", "investment bank", "central bank", "private bank", "public sector bank",
+    "financial institution", "financial institutions", "lender", "lenders", "nbfc",
+    "non-bank financial company", "credit union", "deposit", "deposits", "loan", "loans",
+    "mortgage", "payments", "payment bank", "rbi", "basel", "capital adequacy",
+    "credit risk", "liquidity", "asset quality", "financial crime", "aml", "kyc",
+    "money laundering", "sanctions", "banking regulator", "bank regulator",
+    "chief risk officer", "chief audit executive", "internal audit", "audit committee",
+    "bank of america", "jpmorgan", "jpmorgan chase", "citigroup", "citi", "hsbc",
+    "barclays", "deutsche bank", "ubs", "bnp paribas", "santander", "standard chartered",
+    "goldman sachs", "morgan stanley", "wells fargo", "icbc", "mufg", "mizuho",
+]
+
 CATEGORY_TERMS = {
     "Transformation": [
         "digital transformation", "modernization", "modernisation", "core banking",
@@ -953,16 +967,27 @@ def format_relative_time(value):
 
 
 def classify_category(title, description, hint=None):
-    """Classify an article into one of the four newsroom categories."""
-    if hint in CATEGORIES:
-        return hint
-
+    """Classify only banking-relevant articles into the four newsroom categories."""
     text = f"{title} {description}".lower()
+
+    # Hard gate: a generic technology/people/business story must contain
+    # explicit banking or financial-institution context before it can enter
+    # the audit-news feed. This prevents unrelated stories such as IBM
+    # workplace/expansion articles from being labelled Transformation.
+    banking_hits = sum(1 for term in BANKING_CONTEXT_TERMS if term in text)
+    if banking_hits == 0:
+        return None
+
     scores = {
         category: sum(1 for term in terms if term in text)
         for category, terms in CATEGORY_TERMS.items()
     }
-    return max(scores, key=scores.get) if max(scores.values(), default=0) else "Transformation"
+
+    best_category = max(scores, key=scores.get)
+    if scores[best_category] == 0:
+        return None
+
+    return best_category
 
 
 def calculate_audit_relevance(title, description):
@@ -1002,7 +1027,8 @@ def load_news(api_key, lookback_days, min_relevance, fuzzy_threshold, selected_c
             description,
             row.get("category_hint"),
         )
-        if category not in categories:
+        # Drop non-banking stories before relevance scoring and rendering.
+        if category is None or category not in categories:
             continue
 
         relevance = calculate_audit_relevance(title, description)
