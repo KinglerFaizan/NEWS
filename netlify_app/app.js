@@ -56,7 +56,7 @@ function render(){
 
 function renderFeatured(story){
   if(!story){$("#featured").innerHTML="";return}
-  $("#featured").innerHTML='<img class="featured-image" src="'+esc(story.image_url||"/placeholder.svg")+'" onerror="this.src=/placeholder.svg" alt="">'+
+  $("#featured").innerHTML='<img class="featured-image" src="'+esc(story.image_url||"/placeholder.svg")+'" onerror="this.src='/placeholder.svg'" alt="">'+
     '<div class="featured-copy"><div class="featured-kicker">'+esc(story.category)+" · ADAPTIVE TOP STORY</div>"+
     "<h2>"+esc(story.title)+"</h2><p>"+esc(story.description||"")+"</p>"+
     '<a href="'+esc(story.url)+'" target="_blank" rel="noopener noreferrer">Open source article ↗</a></div>';
