@@ -569,12 +569,12 @@ st.markdown("""
     }
     .category-grid {
         display:grid;
-        grid-template-columns:1fr;
+        grid-template-columns:repeat(2,minmax(0,1fr));
         gap:14px;
     }
     .category-card {
         position:relative; min-width:0; overflow:hidden;
-        display:grid; grid-template-columns:250px 1fr;
+        display:flex; flex-direction:column;
         background:#fff; border:1px solid var(--border); border-radius:15px;
         box-shadow:0 2px 7px rgba(11,18,32,.035);
         transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;
@@ -585,7 +585,7 @@ st.markdown("""
         box-shadow:0 12px 28px rgba(11,18,32,.09);
     }
     .category-card-image-wrap {
-        position:relative; width:100%; height:100%; min-height:180px; overflow:hidden; background:#EEF2F7;
+        position:relative; width:100%; height:180px; min-height:180px; overflow:hidden; background:#EEF2F7;
     }
     .category-card-image {
         width:100%; height:100%; display:block; object-fit:cover;
