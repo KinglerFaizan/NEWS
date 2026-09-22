@@ -1,0 +1,17 @@
+name: Deploy Netlify site
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Netlify
+        run: |
+          npx -y @netlify/mcp@latest --site-id 931d3761-c493-4923-95c9-cce07a361535 --proxy-path "https://netlify-mcp.netlify.app/proxy/eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..aZ0uf3QKhWyW6ws3.A1Abgw7U17y5Q_7-fInn3DHBxTSG4wBYBtgpy4ivvZ9g0J4WET4VJHqVQcYOYxvylowblhFIZ6Yf6WWK-AZfxfrvMGsnQhu1Tb4ixN3pb-OLJr2CrORMt17jtDAJYDqQuWqEnPFpv8-fR5DaRRALOXhjQukQ5yThW50EBdu2WoSPpzWZ761iU3Eh3JzpXaK2ZJG_6EjTFRUrx1XpPM0fNU1UUrjPEMFcN48Mn8d9CqX0_egRN9FxlfB4rANqcgErop1xfnSatyJtSSKx1mr-St9r3uwDo6LZZMcXWH0u0CL7uRUJQuae1zPg5fe4YoDuAUjM-8b5law61mx7ExMUMl7Uxqpr9f7yoRfcMUKjTkhQABUf5YCJ6UEmAKPMSEq3kB1h3j97.V-pesIXtj0ivTMWOGzqdkg"
