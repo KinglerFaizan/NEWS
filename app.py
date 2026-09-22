@@ -11,7 +11,6 @@ variables, Streamlit secrets, or the in-page fields.
 """
 
 import os
-import math
 import re
 from html import escape
 from collections import Counter
@@ -79,123 +78,6 @@ def secret_diagnostics():
 
     return secrets_available, env_present, named_secret_present, secret_keys
 
-
-
-# ---------------------------------------------------------
-# PERSONAL NEWS LEARNING MODEL
-# ---------------------------------------------------------
-
-def _article_learning_tokens(article):
-    """Tokenize an article using only the Python standard library."""
-    text = " ".join(
-        str(article.get(key) or "")
-        for key in ("title", "description", "category", "source")
-    ).lower()
-    return re.findall(r"[a-z0-9]{2,}", text)
-
-
-def init_personal_news_model():
-    """Create a tiny online Naive-Bayes-style learner per browser session."""
-    if "news_token_counts" not in st.session_state:
-        st.session_state.news_token_counts = {0: {}, 1: {}}
-        st.session_state.news_class_counts = {0: 0, 1: 0}
-        st.session_state.news_total_tokens = {0: 0, 1: 0}
-        st.session_state.news_feedback = {}
-        st.session_state.news_feedback_count = 0
-
-
-def record_news_feedback(article, label):
-    """Immediately update the learner from one Like / Not-for-me signal."""
-    init_personal_news_model()
-
-    url = str(article.get("url") or "")
-    if not url:
-        return
-
-    previous = st.session_state.news_feedback.get(url)
-    label = int(label)
-
-    # Do not train repeatedly when the user clicks the same signal again.
-    if previous == label:
-        return
-
-    tokens = _article_learning_tokens(article)
-    token_counts = st.session_state.news_token_counts[label]
-
-    # If the user changes their mind, remove the old example first.
-    if previous in (0, 1):
-        old_counts = st.session_state.news_token_counts[previous]
-        st.session_state.news_class_counts[previous] = max(
-            0, st.session_state.news_class_counts[previous] - 1
-        )
-        for token in tokens:
-            old_counts[token] = max(0, old_counts.get(token, 0) - 1)
-            st.session_state.news_total_tokens[previous] = max(
-                0, st.session_state.news_total_tokens[previous] - 1
-            )
-
-    st.session_state.news_class_counts[label] += 1
-    for token in tokens:
-        token_counts[token] = token_counts.get(token, 0) + 1
-        st.session_state.news_total_tokens[label] += 1
-
-    st.session_state.news_feedback[url] = label
-    st.session_state.news_feedback_count = len(st.session_state.news_feedback)
-
-
-def get_personal_preference_score(article):
-    """Return a smoothed 0..1 learned-interest probability."""
-    init_personal_news_model()
-
-    if not any(st.session_state.news_class_counts.values()):
-        return 0.5
-
-    tokens = _article_learning_tokens(article)
-    class_counts = st.session_state.news_class_counts
-    total_examples = max(1, class_counts[0] + class_counts[1])
-    token_counts = st.session_state.news_token_counts
-    total_tokens = st.session_state.news_total_tokens
-
-    # Laplace-smoothed token likelihood with a small prior.
-    vocabulary = set(token_counts[0]) | set(token_counts[1])
-    vocab_size = max(1, len(vocabulary))
-    log_scores = {}
-
-    for label in (0, 1):
-        prior = (class_counts[label] + 1.0) / (total_examples + 2.0)
-        denominator = total_tokens[label] + vocab_size
-        score = math.log(prior)
-        for token in tokens:
-            probability = (token_counts[label].get(token, 0) + 1.0) / denominator
-            score += math.log(probability)
-        log_scores[label] = score
-
-    margin = max(-12.0, min(12.0, log_scores[1] - log_scores[0]))
-    return 1.0 / (1.0 + math.exp(-margin))
-
-
-def personalize_news(rows):
-    """Blend audit relevance with the lightweight learned preference model."""
-    if not rows:
-        return []
-
-    enriched = []
-    for article in rows:
-        item = dict(article)
-        preference = get_personal_preference_score(item)
-        audit_score = float(item.get("audit_relevance", 0) or 0) / 40.0
-        item["_personal_preference"] = preference
-        item["_personal_score"] = (0.65 * audit_score) + (0.35 * preference)
-        enriched.append(item)
-
-    return sorted(
-        enriched,
-        key=lambda x: (
-            x["_personal_score"],
-            x.get("publishedAt") or "",
-        ),
-        reverse=True,
-    )
 
 
 # ---------------------------------------------------------
@@ -579,15 +461,6 @@ st.markdown("""
         to { opacity:1; transform:translateY(0); }
     }
 
-    /* ---------------- Personal learning controls ---------------- */
-    .feedback-note {
-        font-size:9px; color:#6B7280; text-align:right; margin-top:4px;
-    }
-    section[data-testid="stSidebar"] .learning-status {
-        padding:10px 11px; border:1px solid #DBEAFE; background:#EFF6FF;
-        border-radius:9px; font-size:10.5px; line-height:1.45; color:#1E3A8A;
-    }
-
     /* ---------------- News-first newsroom layout ---------------- */
     .news-masthead {
         display:flex; justify-content:space-between; align-items:flex-end; gap:20px;
@@ -754,10 +627,7 @@ st.markdown("""
         text-transform:uppercase;padding:9px 9px 5px;
     }
     .sidebar-divider {height:1px;background:#EEF1F5;margin:7px 4px;}
-    .sidebar-learning {
-        padding:9px;border:1px solid #DBEAFE;background:#F3F7FF;border-radius:9px;
-        color:#31558F;font-size:9.5px;line-height:1.4;margin:7px 2px;
-    }
+
 
     /* ---------------- Featured Analysis hero ---------------- */
     .featured-hero {
@@ -1649,13 +1519,6 @@ with st.sidebar:
     # Keep all four categories available to the main newsroom navigation.
     selected_categories = list(CATEGORIES.keys())
 
-    st.markdown(
-        f'<div class="sidebar-learning"><b>🧠 Personal learning</b><br>'
-        f'{st.session_state.get("news_feedback_count", 0)} feedback signals. '
-        f'Likes and dislikes continuously tune this session\'s feed.</div>',
-        unsafe_allow_html=True,
-    )
-
     fuzzy_threshold = {
         "Loose": 0.85,
         "Balanced": 0.72,
@@ -1974,7 +1837,7 @@ def render_top_stories(rows, rotation_seconds=5):
     top = sorted(
         rows,
         key=lambda item: (
-            item.get("_personal_score", float(item.get("audit_relevance", 0) or 0) / 40.0),
+            float(item.get("audit_relevance", 0) or 0),
             item.get("publishedAt") or "",
         ),
         reverse=True,
@@ -2166,37 +2029,14 @@ def render_category_grid(category, rows):
                     unsafe_allow_html=True,
                 )
 
-                fb1, fb2, fb3 = st.columns([1, 1, 2])
-                with fb1:
-                    if st.button(
-                        "👍 Like",
-                        key=f"like_{hash(article.get('url',''))}",
-                        use_container_width=True,
-                    ):
-                        record_news_feedback(article, 1)
-                        st.toast("Learned: similar stories will be prioritized.")
-                with fb2:
-                    if st.button(
-                        "👎 Not for me",
-                        key=f"dislike_{hash(article.get('url',''))}",
-                        use_container_width=True,
-                    ):
-                        record_news_feedback(article, 0)
-                        st.toast("Learned: similar stories will be deprioritized.")
-                with fb3:
-                    st.markdown(
-                        f'<div class="feedback-note">AI preference: {preference:.0%}</div>',
-                        unsafe_allow_html=True,
-                    )
+
+
 
 
 
 # ---------------------------------------------------------
 # 12. MAIN NEWS FEED
 # ---------------------------------------------------------
-# News is the primary surface.
-filtered = personalize_news(filtered)
-
 # News is the primary surface. A rotating 4-story priority strip appears first.
 
 if not filtered:
