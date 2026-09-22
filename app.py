@@ -20,6 +20,7 @@ from textwrap import dedent
 import pandas as pd
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 
 import news_providers as npv
 
@@ -1614,6 +1615,7 @@ def render_featured(article):
 
 
 def render_top_stories(rows, rotation_seconds=5):
+    """Render the top four priority stories as a real timed carousel."""
     if not rows:
         return
 
@@ -1626,88 +1628,109 @@ def render_top_stories(rows, rotation_seconds=5):
         reverse=True,
     )[:4]
 
-    slides=[]
-    dots=[]
+    slides = []
     for idx, article in enumerate(top, 1):
-        color=CATEGORY_COLORS.get(article["category"],"#2563EB")
-        label=CATEGORY_DISPLAY.get(article["category"],article["category"])
-        title=escape(str(article.get("title") or "Untitled story"))
-        description=escape(str(article.get("description") or "Independent institutional briefing coverage."))
-        source=escape(str(article.get("source") or "Unknown source"))
-        url=escape(str(article.get("url") or "#"),quote=True)
-        rel_time=escape(str(format_relative_time(article.get("publishedAt",""))))
-        image_url=escape(str(article.get("image_url") or ""),quote=True)
-        fallback=placeholder_data_uri(color)
-        image=(
-            f'<img class="top-story-image" src="{image_url}" alt="" '
-            f'onerror="this.onerror=null;this.src=\'{fallback}\';" />'
-            if image_url else
-            f'<img class="top-story-image" src="{fallback}" alt="" />'
+        color = CATEGORY_COLORS.get(article["category"], "#2563EB")
+        label = CATEGORY_DISPLAY.get(article["category"], article["category"])
+        title = escape(str(article.get("title") or "Untitled story"))
+        description = escape(
+            str(article.get("description") or "Independent institutional briefing coverage.")
         )
-        slides.append(
-            f"""
-            <article class="top-story-slide {'active' if idx==1 else ''}" id="top-story-{idx}">
-                <a href="{url}" target="_blank" rel="noopener noreferrer" class="top-story-image-wrap">
-                    {image}
-                </a>
-                <div class="top-story-body">
-                    <div class="top-story-number">{idx}</div>
-                    <div class="top-story-label" style="color:{color};">{escape(label)} · TOP STORY</div>
-                    <a href="{url}" target="_blank" rel="noopener noreferrer" class="top-story-title">{title}</a>
-                    <div class="top-story-desc">{description}</div>
-                    <div class="top-story-meta">
-                        <span>{source}</span>
-                        <span>{rel_time}</span>
-                    </div>
-                </div>
-            </article>
-            """
-        )
-        dots.append(f'<span class="top-story-dot" id="top-dot-{idx}"></span>')
+        source = escape(str(article.get("source") or "Unknown source"))
+        url = escape(str(article.get("url") or "#"), quote=True)
+        rel_time = escape(str(format_relative_time(article.get("publishedAt", ""))))
+        image_url = escape(str(article.get("image_url") or ""), quote=True)
+        fallback = placeholder_data_uri(color)
 
-    container = dedent(f"""
-    <section class="top-stories" data-rotation="{int(rotation_seconds)}">
-        <div class="top-stories-head">
-            <div>
-                <div class="top-stories-kicker"><span class="live-dot"></span> PRIORITY NEWS</div>
-                <div class="top-stories-title">Top Stories Today</div>
-                <div class="top-stories-sub">Automatically rotating high-priority intelligence</div>
-            </div>
-            <div class="top-stories-progress">
-                <div class="top-stories-dots">{''.join(dots)}</div>
-                <span>1 / {len(top)}</span>
-            </div>
-        </div>
-        {''.join(slides)}
-    </section>
-    """).strip()
+        if image_url:
+            image = (
+                f'<img src="{image_url}" alt="" '
+                f'onerror="this.onerror=null;this.src=\'{fallback}\';">'
+            )
+        else:
+            image = f'<img src="{fallback}" alt="">'
 
-    st.markdown(container, unsafe_allow_html=True)
-    st.markdown(
-        f"""
-        <script>
-        (function() {{
-          const root = document.currentScript.previousElementSibling;
-          if (!root) return;
-          const slides = root.querySelectorAll('.top-story-slide');
-          const dots = root.querySelectorAll('.top-story-dot');
-          const counter = root.querySelector('.top-stories-progress span:last-child');
-          let i = 0;
-          setInterval(function() {{
-            if (!slides.length) return;
-            slides[i].classList.remove('active');
-            dots[i].style.background = 'rgba(255,255,255,.25)';
-            i = (i + 1) % slides.length;
-            slides[i].classList.add('active');
-            dots[i].style.background = '#93C5FD';
-            if (counter) counter.textContent = (i + 1) + ' / ' + slides.length;
-          }}, {int(rotation_seconds * 1000)});
-          if (dots[0]) dots[0].style.background = '#93C5FD';
-        }})();
-        </script>
-        """,
-        unsafe_allow_html=True,
+        slides.append(f"""
+<div class="top-story-slide" data-index="{idx}">
+  <a href="{url}" target="_blank" rel="noopener noreferrer" class="top-story-image-wrap">{image}</a>
+  <div class="top-story-body">
+    <div class="top-story-number">{idx}</div>
+    <div class="top-story-label" style="color:{color};">{escape(label)} · TOP STORY</div>
+    <a href="{url}" target="_blank" rel="noopener noreferrer" class="top-story-title">{title}</a>
+    <div class="top-story-desc">{description}</div>
+    <div class="top-story-meta"><span>{source}</span><span>{rel_time}</span></div>
+  </div>
+</div>
+""".strip())
+
+    dots = "".join(
+        f'<span class="top-story-dot {"active" if i == 1 else ""}"></span>'
+        for i in range(1, len(top) + 1)
     )
+
+    html = f"""
+<!doctype html>
+<html>
+<head>
+<style>
+*{{box-sizing:border-box}}
+html,body{{margin:0;padding:0;background:transparent;font-family:Inter,Arial,sans-serif}}
+.carousel{{background:linear-gradient(135deg,#0B1220 0%,#111C36 55%,#1B2B61 100%);border-radius:18px;padding:18px;color:#fff;box-shadow:0 12px 32px rgba(11,18,32,.14)}}
+.head{{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:13px}}
+.kicker{{font-size:10px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#93C5FD}}
+.title{{font-size:22px;font-weight:900;letter-spacing:-.5px;margin-top:3px}}
+.sub{{font-size:11.5px;color:rgba(255,255,255,.65);margin-top:3px}}
+.counter{{font-size:10px;font-family:monospace;color:rgba(255,255,255,.62);white-space:nowrap}}
+.dots{{display:inline-flex;gap:5px;margin-right:8px;vertical-align:middle}}
+.dot{{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.25)}}
+.dot.active{{background:#93C5FD}}
+.slide{{display:none;grid-template-columns:36% 64%;min-height:250px}}
+.slide.active{{display:grid;animation:fade .45s ease}}
+.image{{width:100%;height:250px;object-fit:cover;display:block}}
+.image-wrap{{display:block;overflow:hidden;border-radius:13px 0 0 13px;background:#1E293B}}
+.body{{background:rgba(255,255,255,.06);padding:23px 25px;border:1px solid rgba(255,255,255,.08);border-left:0;border-radius:0 13px 13px 0;display:flex;flex-direction:column;justify-content:center}}
+.num{{width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.10);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;margin-bottom:12px}}
+.label{{font-size:9px;font-weight:850;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}}
+.story-title{{color:#fff;text-decoration:none;font-size:25px;line-height:1.18;font-weight:900;letter-spacing:-.5px}}
+.story-title:hover{{color:#BFDBFE}}
+.desc{{color:rgba(255,255,255,.72);font-size:12.5px;line-height:1.55;margin-top:10px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}}
+.meta{{display:flex;justify-content:space-between;gap:10px;padding-top:15px;margin-top:16px;border-top:1px solid rgba(255,255,255,.10);color:rgba(255,255,255,.58);font-size:10.5px;font-weight:650}}
+@keyframes fade{{from{{opacity:.25;transform:translateY(5px)}}to{{opacity:1;transform:translateY(0)}}}}
+@media(max-width:800px){{.slide.active{{grid-template-columns:1fr}}.image{{height:190px}}.image-wrap{{border-radius:13px 13px 0 0}}.body{{border-left:1px solid rgba(255,255,255,.08);border-radius:0 0 13px 13px}}.story-title{{font-size:20px}}}}
+</style>
+</head>
+<body>
+<section class="carousel">
+  <div class="head">
+    <div>
+      <div class="kicker">● PRIORITY NEWS</div>
+      <div class="title">Top Stories Today</div>
+      <div class="sub">Automatically rotating high-priority intelligence</div>
+    </div>
+    <div class="counter"><span class="dots">{dots}</span><span id="counter">1 / {len(top)}</span></div>
+  </div>
+  {''.join(slides)}
+</section>
+<script>
+(function(){{
+  const slides=[...document.querySelectorAll('.slide')];
+  const dots=[...document.querySelectorAll('.dot')];
+  const counter=document.getElementById('counter');
+  let current=0;
+  function show(i){{
+    slides.forEach((s,n)=>s.classList.toggle('active',n===i));
+    dots.forEach((d,n)=>d.classList.toggle('active',n===i));
+    counter.textContent=(i+1)+' / '+slides.length;
+  }}
+  show(0);
+  if(slides.length>1) setInterval(()=>{{current=(current+1)%slides.length;show(current)}},{int(rotation_seconds*1000)});
+}})();
+</script>
+</body>
+</html>
+"""
+    components.html(html, height=315, scrolling=False)
+
 
 
 def render_category_grid(category, rows):
