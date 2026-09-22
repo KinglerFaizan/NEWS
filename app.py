@@ -397,6 +397,68 @@ st.markdown("""
     div[data-baseweb="tag"] span { color: var(--accent-blue) !important; }
     div[data-baseweb="tag"] svg { fill: var(--accent-blue) !important; }
 
+    /* ---------------- Top stories carousel ---------------- */
+    .top-stories {
+        background:linear-gradient(135deg,#0B1220 0%,#111C36 55%,#1B2B61 100%);
+        border-radius:18px; padding:18px 18px 16px; margin:2px 0 22px;
+        box-shadow:0 12px 32px rgba(11,18,32,.14);
+        color:#fff;
+    }
+    .top-stories-head {
+        display:flex; justify-content:space-between; align-items:center;
+        gap:14px; margin-bottom:13px;
+    }
+    .top-stories-kicker {
+        display:flex; align-items:center; gap:8px;
+        font-size:10px; font-weight:850; letter-spacing:1.6px;
+        text-transform:uppercase; color:#93C5FD;
+    }
+    .top-stories-kicker .live-dot { width:6px;height:6px;box-shadow:none;animation:none;background:#22C55E; }
+    .top-stories-title { font-size:22px;font-weight:900;letter-spacing:-.5px;margin-top:3px; }
+    .top-stories-sub { font-size:11.5px;color:rgba(255,255,255,.65);margin-top:3px; }
+    .top-stories-progress {
+        display:flex; align-items:center; gap:7px;
+        font-size:9.5px;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.62);
+        white-space:nowrap;
+    }
+    .top-stories-dots { display:flex; gap:5px; }
+    .top-stories-dot { width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.25); }
+    .top-story-slide { display:none; animation:topStoryFade .55s ease; }
+    .top-story-slide.active { display:grid; grid-template-columns:36% 64%; }
+    .top-story-image-wrap { min-height:250px; overflow:hidden; border-radius:13px 0 0 13px; background:#1E293B; }
+    .top-story-image { width:100%;height:100%;min-height:250px;display:block;object-fit:cover; }
+    .top-story-body {
+        background:rgba(255,255,255,.06); backdrop-filter:blur(8px);
+        padding:23px 25px; border:1px solid rgba(255,255,255,.08);
+        border-left:0; border-radius:0 13px 13px 0;
+        display:flex; flex-direction:column; justify-content:center;
+    }
+    .top-story-label { font-size:9px;font-weight:850;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px; }
+    .top-story-number {
+        display:inline-flex;align-items:center;justify-content:center;
+        width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.10);
+        color:#fff;font-size:11px;font-weight:900;margin-bottom:12px;
+    }
+    .top-story-title {
+        color:#fff;text-decoration:none;font-size:25px;line-height:1.18;
+        font-weight:900;letter-spacing:-.5px;
+    }
+    .top-story-title:hover { color:#BFDBFE; }
+    .top-story-desc {
+        color:rgba(255,255,255,.72);font-size:12.5px;line-height:1.55;
+        margin-top:10px;display:-webkit-box;-webkit-line-clamp:3;
+        -webkit-box-orient:vertical;overflow:hidden;
+    }
+    .top-story-meta {
+        display:flex;justify-content:space-between;gap:10px;
+        padding-top:15px;margin-top:16px;border-top:1px solid rgba(255,255,255,.10);
+        color:rgba(255,255,255,.58);font-size:10.5px;font-weight:650;
+    }
+    @keyframes topStoryFade {
+        from { opacity:0; transform:translateY(5px); }
+        to { opacity:1; transform:translateY(0); }
+    }
+
     /* ---------------- News-first newsroom layout ---------------- */
     .news-masthead {
         display:flex; justify-content:space-between; align-items:flex-end; gap:20px;
@@ -1521,13 +1583,12 @@ def render_featured(article):
     image_url = escape(str(article.get("image_url") or ""), quote=True)
     fallback = placeholder_data_uri(color)
 
-    if image_url:
-        image = (
-            f'<img class="featured-image" src="{image_url}" alt="" '
-            f'onerror="this.onerror=null;this.src=\'{fallback}\';" />'
-        )
-    else:
-        image = f'<img class="featured-image" src="{fallback}" alt="" />'
+    image = (
+        f'<img class="featured-image" src="{image_url}" alt="" '
+        f'onerror="this.onerror=null;this.src=\'{fallback}\';" />'
+        if image_url else
+        f'<img class="featured-image" src="{fallback}" alt="" />'
+    )
 
     st.markdown(
         f"""
@@ -1547,6 +1608,103 @@ def render_featured(article):
                 </div>
             </div>
         </article>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_top_stories(rows, rotation_seconds=5):
+    if not rows:
+        return
+
+    top = sorted(
+        rows,
+        key=lambda item: (
+            item.get("audit_relevance", 0),
+            item.get("publishedAt") or "",
+        ),
+        reverse=True,
+    )[:4]
+
+    slides=[]
+    dots=[]
+    for idx, article in enumerate(top, 1):
+        color=CATEGORY_COLORS.get(article["category"],"#2563EB")
+        label=CATEGORY_DISPLAY.get(article["category"],article["category"])
+        title=escape(str(article.get("title") or "Untitled story"))
+        description=escape(str(article.get("description") or "Independent institutional briefing coverage."))
+        source=escape(str(article.get("source") or "Unknown source"))
+        url=escape(str(article.get("url") or "#"),quote=True)
+        rel_time=escape(str(format_relative_time(article.get("publishedAt",""))))
+        image_url=escape(str(article.get("image_url") or ""),quote=True)
+        fallback=placeholder_data_uri(color)
+        image=(
+            f'<img class="top-story-image" src="{image_url}" alt="" '
+            f'onerror="this.onerror=null;this.src=\'{fallback}\';" />'
+            if image_url else
+            f'<img class="top-story-image" src="{fallback}" alt="" />'
+        )
+        slides.append(
+            f"""
+            <article class="top-story-slide {'active' if idx==1 else ''}" id="top-story-{idx}">
+                <a href="{url}" target="_blank" rel="noopener noreferrer" class="top-story-image-wrap">
+                    {image}
+                </a>
+                <div class="top-story-body">
+                    <div class="top-story-number">{idx}</div>
+                    <div class="top-story-label" style="color:{color};">{escape(label)} · TOP STORY</div>
+                    <a href="{url}" target="_blank" rel="noopener noreferrer" class="top-story-title">{title}</a>
+                    <div class="top-story-desc">{description}</div>
+                    <div class="top-story-meta">
+                        <span>{source}</span>
+                        <span>{rel_time}</span>
+                    </div>
+                </div>
+            </article>
+            """
+        )
+        dots.append(f'<span class="top-story-dot" id="top-dot-{idx}"></span>')
+
+    container = dedent(f"""
+    <section class="top-stories" data-rotation="{int(rotation_seconds)}">
+        <div class="top-stories-head">
+            <div>
+                <div class="top-stories-kicker"><span class="live-dot"></span> PRIORITY NEWS</div>
+                <div class="top-stories-title">Top Stories Today</div>
+                <div class="top-stories-sub">Automatically rotating high-priority intelligence</div>
+            </div>
+            <div class="top-stories-progress">
+                <div class="top-stories-dots">{''.join(dots)}</div>
+                <span>1 / {len(top)}</span>
+            </div>
+        </div>
+        {''.join(slides)}
+    </section>
+    """).strip()
+
+    st.markdown(container, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <script>
+        (function() {{
+          const root = document.currentScript.previousElementSibling;
+          if (!root) return;
+          const slides = root.querySelectorAll('.top-story-slide');
+          const dots = root.querySelectorAll('.top-story-dot');
+          const counter = root.querySelector('.top-stories-progress span:last-child');
+          let i = 0;
+          setInterval(function() {{
+            if (!slides.length) return;
+            slides[i].classList.remove('active');
+            dots[i].style.background = 'rgba(255,255,255,.25)';
+            i = (i + 1) % slides.length;
+            slides[i].classList.add('active');
+            dots[i].style.background = '#93C5FD';
+            if (counter) counter.textContent = (i + 1) + ' / ' + slides.length;
+          }}, {int(rotation_seconds * 1000)});
+          if (dots[0]) dots[0].style.background = '#93C5FD';
+        }})();
+        </script>
         """,
         unsafe_allow_html=True,
     )
@@ -1623,7 +1781,7 @@ def render_category_grid(category, rows):
 # ---------------------------------------------------------
 # 12. MAIN NEWS FEED
 # ---------------------------------------------------------
-# News is the primary surface. Controls and diagnostics live in the sidebar.
+# News is the primary surface. A rotating 4-story priority strip appears first.
 
 if not filtered:
     st.markdown(
@@ -1639,7 +1797,7 @@ if not filtered:
         unsafe_allow_html=True,
     )
 else:
-    render_featured(filtered[0])
+    render_top_stories(filtered, rotation_seconds=5)
 
     st.markdown(
         '<div class="feed-section-title">'
