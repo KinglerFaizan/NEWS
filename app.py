@@ -19,11 +19,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from textwrap import dedent
 
 import pandas as pd
+import numpy as np
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
 import news_providers as npv
+from sklearn.feature_extraction.text import HashingVectorizer
+from sklearn.linear_model import SGDClassifier
 
 # NewsData.io credential.
 # Intentionally embedded here at the user's request.
@@ -78,6 +81,111 @@ def secret_diagnostics():
 
     return secrets_available, env_present, named_secret_present, secret_keys
 
+
+
+# ---------------------------------------------------------
+# PERSONAL NEWS LEARNING MODEL
+# ---------------------------------------------------------
+
+def _article_learning_text(article):
+    return " ".join(
+        str(article.get(key) or "")
+        for key in ("title", "description", "category", "source")
+    ).strip()
+
+
+def init_personal_news_model():
+    """Create one online learner per browser session."""
+    if "news_vectorizer" not in st.session_state:
+        st.session_state.news_vectorizer = HashingVectorizer(
+            n_features=2**16,
+            alternate_sign=False,
+            lowercase=True,
+            ngram_range=(1, 2),
+            norm="l2",
+        )
+        st.session_state.news_model = SGDClassifier(
+            loss="log_loss",
+            alpha=0.0005,
+            learning_rate="constant",
+            eta0=0.03,
+            random_state=42,
+        )
+        st.session_state.news_model_trained = False
+        st.session_state.news_feedback = {}
+        st.session_state.news_feedback_count = 0
+
+
+def record_news_feedback(article, label):
+    """Immediately train the online classifier from one user signal."""
+    init_personal_news_model()
+
+    url = str(article.get("url") or "")
+    if not url:
+        return
+
+    previous = st.session_state.news_feedback.get(url)
+
+    # Avoid repeatedly training on the same unchanged click.
+    if previous == label:
+        return
+
+    text = _article_learning_text(article)
+    X = st.session_state.news_vectorizer.transform([text])
+    y = np.array([int(label)], dtype=np.int64)
+
+    if not st.session_state.news_model_trained:
+        st.session_state.news_model.partial_fit(
+            X,
+            y,
+            classes=np.array([0, 1], dtype=np.int64),
+        )
+        st.session_state.news_model_trained = True
+    else:
+        st.session_state.news_model.partial_fit(X, y)
+
+    st.session_state.news_feedback[url] = int(label)
+    st.session_state.news_feedback_count = len(st.session_state.news_feedback)
+
+
+def get_personal_preference_score(article):
+    """Return 0..1 predicted user-interest probability."""
+    init_personal_news_model()
+
+    if not st.session_state.news_model_trained:
+        return 0.5
+
+    text = _article_learning_text(article)
+    X = st.session_state.news_vectorizer.transform([text])
+
+    try:
+        return float(st.session_state.news_model.predict_proba(X)[0, 1])
+    except Exception:
+        return 0.5
+
+
+def personalize_news(rows):
+    """Blend audit relevance with learned user preference."""
+    if not rows:
+        return []
+
+    enriched = []
+    for article in rows:
+        item = dict(article)
+        preference = get_personal_preference_score(item)
+        audit_score = float(item.get("audit_relevance", 0) or 0) / 40.0
+        item["_personal_preference"] = preference
+        item["_personal_score"] = (0.65 * audit_score) + (0.35 * preference)
+        enriched.append(item)
+
+    return sorted(
+        enriched,
+        key=lambda x: (
+            x["_personal_score"],
+            x.get("publishedAt") or "",
+        ),
+        reverse=True,
+    )
 
 
 # ---------------------------------------------------------
@@ -459,6 +567,15 @@ st.markdown("""
     @keyframes topStoryFade {
         from { opacity:0; transform:translateY(5px); }
         to { opacity:1; transform:translateY(0); }
+    }
+
+    /* ---------------- Personal learning controls ---------------- */
+    .feedback-note {
+        font-size:9px; color:#6B7280; text-align:right; margin-top:4px;
+    }
+    section[data-testid="stSidebar"] .learning-status {
+        padding:10px 11px; border:1px solid #DBEAFE; background:#EFF6FF;
+        border-radius:9px; font-size:10.5px; line-height:1.45; color:#1E3A8A;
     }
 
     /* ---------------- News-first newsroom layout ---------------- */
@@ -1338,6 +1455,8 @@ st.markdown(f"""
 
 
 # ---------------------------------------------------------
+init_personal_news_model()
+
 # 7. SIDEBAR CONTROL CENTER
 # ---------------------------------------------------------
 
@@ -1357,6 +1476,13 @@ with st.sidebar:
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    st.markdown(
+        f'<div class="learning-status"><b>🧠 Personal News Learning</b><br>'
+        f'Trained from <b>{st.session_state.get("news_feedback_count", 0)}</b> feedback signals. '
+        f'Likes raise similar stories; dislikes lower them.</div>',
+        unsafe_allow_html=True,
+    )
 
     hard_refresh = st.button(
         "⟲  Refresh All Data",
@@ -1685,7 +1811,7 @@ def render_top_stories(rows, rotation_seconds=5):
     top = sorted(
         rows,
         key=lambda item: (
-            item.get("audit_relevance", 0),
+            item.get("_personal_score", float(item.get("audit_relevance", 0) or 0) / 40.0),
             item.get("publishedAt") or "",
         ),
         reverse=True,
@@ -1804,53 +1930,12 @@ html,body{{margin:0;padding:0;background:transparent;font-family:Inter,Arial,san
 
 
 def render_category_grid(category, rows):
-    """Render one category as a dense, responsive two-card-per-row newsroom grid."""
+    """Render category stories in a two-column newsroom grid with feedback controls."""
     if not rows:
         return
 
     color = CATEGORY_COLORS.get(category, "#2563EB")
     label = CATEGORY_DISPLAY.get(category, category)
-
-    cards = []
-    for article in rows:
-        title = escape(str(article.get("title") or "Untitled story"))
-        description = escape(str(article.get("description") or "Independent institutional briefing coverage."))
-        source = escape(str(article.get("source") or "Unknown source"))
-        url = escape(str(article.get("url") or "#"), quote=True)
-        rel_time = escape(str(format_relative_time(article.get("publishedAt", ""))))
-        image_url = escape(str(article.get("image_url") or ""), quote=True)
-        fallback = placeholder_data_uri(color)
-
-        if image_url:
-            image = (
-                f'<img class="category-card-image" src="{image_url}" alt="" '
-                f'loading="lazy" referrerpolicy="no-referrer" '
-                f'onerror="this.onerror=null;this.src=\'{fallback}\';" />'
-            )
-        else:
-            image = f'<img class="category-card-image" src="{fallback}" alt="" />'
-
-        cards.append(f"""
-        <article class="category-card">
-            <a href="{url}" target="_blank" rel="noopener noreferrer" class="category-card-image-wrap">
-                {image}
-            </a>
-            <div class="category-card-body">
-                <div class="category-card-meta">
-                    <span class="badge" style="background:{color};">{escape(label)}</span>
-                    <span class="insight-date">{rel_time}</span>
-                </div>
-                <a href="{url}" target="_blank" rel="noopener noreferrer" class="category-card-title-link">
-                    <div class="category-card-title">{title}</div>
-                </a>
-                <div class="category-card-desc">{description}</div>
-                <div class="category-card-footer">
-                    <span class="source-chip">{source}</span>
-                    <a href="{url}" target="_blank" rel="noopener noreferrer" class="read-link">Read source ↗</a>
-                </div>
-            </div>
-        </article>
-        """)
 
     st.markdown(
         dedent(f"""
@@ -1862,18 +1947,93 @@ def render_category_grid(category, rows):
                     <span class="category-count">{len(rows):02d} stories</span>
                 </div>
             </div>
-            <div class="category-grid">
-                {''.join(cards)}
-            </div>
         </section>
         """).strip(),
         unsafe_allow_html=True,
     )
 
+    for start in range(0, len(rows), 2):
+        pair = rows[start:start + 2]
+        cols = st.columns(2, gap="medium")
+
+        for col, article in zip(cols, pair):
+            with col:
+                title = escape(str(article.get("title") or "Untitled story"))
+                description = escape(
+                    str(article.get("description") or "Independent institutional briefing coverage.")
+                )
+                source = escape(str(article.get("source") or "Unknown source"))
+                url = escape(str(article.get("url") or "#"), quote=True)
+                rel_time = escape(str(format_relative_time(article.get("publishedAt", ""))))
+                image_url = escape(str(article.get("image_url") or ""), quote=True)
+                fallback = placeholder_data_uri(color)
+                preference = article.get("_personal_preference", 0.5)
+
+                if image_url:
+                    image = (
+                        f'<img class="category-card-image" src="{image_url}" alt="" '
+                        f'loading="lazy" referrerpolicy="no-referrer" '
+                        f'onerror="this.onerror=null;this.src=\'{fallback}\';" />'
+                    )
+                else:
+                    image = f'<img class="category-card-image" src="{fallback}" alt="" />'
+
+                st.markdown(
+                    f"""
+                    <article class="category-card">
+                        <a href="{url}" target="_blank" rel="noopener noreferrer" class="category-card-image-wrap">
+                            {image}
+                        </a>
+                        <div class="category-card-body">
+                            <div class="category-card-meta">
+                                <span class="badge" style="background:{color};">{escape(label)}</span>
+                                <span class="insight-date">{rel_time}</span>
+                            </div>
+                            <a href="{url}" target="_blank" rel="noopener noreferrer" class="category-card-title-link">
+                                <div class="category-card-title">{title}</div>
+                            </a>
+                            <div class="category-card-desc">{description}</div>
+                            <div class="category-card-footer">
+                                <span class="source-chip">{source}</span>
+                                <a href="{url}" target="_blank" rel="noopener noreferrer" class="read-link">Read source ↗</a>
+                            </div>
+                        </div>
+                    </article>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                fb1, fb2, fb3 = st.columns([1, 1, 2])
+                with fb1:
+                    if st.button(
+                        "👍 Like",
+                        key=f"like_{hash(article.get('url',''))}",
+                        use_container_width=True,
+                    ):
+                        record_news_feedback(article, 1)
+                        st.toast("Learned: similar stories will be prioritized.")
+                with fb2:
+                    if st.button(
+                        "👎 Not for me",
+                        key=f"dislike_{hash(article.get('url',''))}",
+                        use_container_width=True,
+                    ):
+                        record_news_feedback(article, 0)
+                        st.toast("Learned: similar stories will be deprioritized.")
+                with fb3:
+                    st.markdown(
+                        f'<div class="feedback-note">AI preference: {preference:.0%}</div>',
+                        unsafe_allow_html=True,
+                    )
+
+
 
 # ---------------------------------------------------------
 # 12. MAIN NEWS FEED
 # ---------------------------------------------------------
+# News is the primary surface.
+filtered = personalize_news(filtered)
+
 # News is the primary surface. A rotating 4-story priority strip appears first.
 
 if not filtered:
