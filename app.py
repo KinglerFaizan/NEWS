@@ -25,32 +25,22 @@ import streamlit.components.v1 as components
 
 import news_providers as npv
 
-# NewsData.io credential.
-# Intentionally embedded here at the user's request.
-NEWSDATA_API_KEY_HARDCODED = "pub_2a0098094c1a4adbba22d0a71770195e"
-
-# Server-side NewsData.io credential only. Never render this value in the UI.
-def get_newdata_api_key():
-    """Resolve NewsData.io from root-level Streamlit Secrets or environment variables."""
-    names = ("NEWSDATA_API_KEY", "NEWSDATA_KEY")
-
-    for name in names:
-        value = os.environ.get(name)
-        if value and value.strip():
-            return value.strip()
-
+# Internal repository uses NewsAPI. Keep the credential server-side.
+# Configure NEWSAPI_KEY or NEWS_API_KEY in Streamlit Secrets/environment.
+def get_newsapi_key():
+    for name in ("NEWSAPI_KEY", "NEWS_API_KEY"):
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
     try:
-        for name in names:
-            try:
-                value = st.secrets[name]
-            except KeyError:
-                value = ""
-            if value is not None and str(value).strip():
-                return str(value).strip()
+        for name in ("NEWSAPI_KEY", "NEWS_API_KEY"):
+            value = str(st.secrets.get(name, "")).strip()
+            if value:
+                return value
     except Exception:
         pass
+    return ""
 
-    return NEWSDATA_API_KEY_HARDCODED.strip()
 
 
 def secret_diagnostics():
@@ -888,12 +878,14 @@ CATEGORY_DISPLAY = {
     "Transformation": "Transformation",
     "Regulation": "Regulation",
     "People": "People",
+    "Cyber & Tech": "Cyber & Technology",
     "Global Banks": "Global Banking",
 }
 CATEGORY_COLORS = {
     "Transformation": "#2563EB",
     "Regulation": "#16A34A",
     "People": "#6B7280",
+    "Cyber & Tech": "#0891B2",
     "Global Banks": "#7C3AED",
 }
 
@@ -956,6 +948,11 @@ CATEGORY_TERMS = {
         "appointed", "appointment", "ceo", "cfo", "cro", "ciso", "chief audit",
         "internal audit", "audit committee", "board", "director", "chairman",
         "chairwoman", "leadership", "executive",
+    ],
+    "Cyber & Tech": [
+        "cybersecurity", "cyber security", "cyber attack", "ransomware",
+        "data breach", "malware", "phishing", "technology", "artificial intelligence",
+        "generative ai", "machine learning", "cloud", "automation", "digital fraud",
     ],
     "Global Banks": [
         "hsbc", "jpmorgan", "jpmorgan chase", "citi", "citigroup", "barclays",
@@ -1057,8 +1054,8 @@ def _lookup_secret(*names):
 
 
 def get_api_keys():
-    """Return only the server-side NewsData.io credential."""
-    return {"newsdata": get_newdata_api_key()}
+    """Return the server-side NewsAPI credential."""
+    return {"newsapi": get_newsapi_key()}
 
 def format_relative_time(value):
     """Format an article timestamp for the newsroom cards."""
@@ -1117,10 +1114,10 @@ def calculate_audit_relevance(title, description):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_news(api_key, lookback_days, min_relevance, fuzzy_threshold, selected_categories):
-    """Fetch, classify and filter the NewsData.io briefing."""
+    """Fetch, classify and filter the NewsAPI briefing."""
     categories = tuple(selected_categories)
     raw, errors, stats = npv.fetch_all(
-        {"newsdata": api_key},
+        {"newsapi": api_key},
         lookback_days=lookback_days,
         categories=list(categories),
         fuzzy_threshold=fuzzy_threshold,
@@ -1484,7 +1481,7 @@ with st.sidebar:
         <div class="sidebar-live-card">
             <div class="sidebar-live-kicker"><span class="sidebar-live-dot"></span> LIVE DATA</div>
             <div class="sidebar-provider-row">
-                <span class="sidebar-provider-name">NewsData.io</span>
+                <span class="sidebar-provider-name">NewsAPI</span>
                 <span class="sidebar-active-pill">Active</span>
             </div>
             <div class="sidebar-stamp">
@@ -1570,7 +1567,7 @@ if ("news_loaded" not in st.session_state) or (
 ):
     with st.spinner("Compiling the audit intelligence briefing..."):
         articles, errors, stats = load_news(
-            api_keys["newsdata"],
+            api_keys["newsapi"],
             lookback_days,
             min_relevance,
             fuzzy_threshold,
@@ -1603,7 +1600,7 @@ if st.session_state.get("active_view") not in (None, "All News"):
 
 if not api_keys.get("newsdata"):
     secrets_available, env_present, named_secret_present, secret_keys = secret_diagnostics()
-    st.error("NewsData.io key is not reaching this running Streamlit instance.")
+    st.error("NewsAPI key is not reaching this running Streamlit instance.")
     with st.expander("🔧 Secret diagnostics", expanded=True):
         st.write(f"Streamlit Secrets available: **{'Yes' if secrets_available else 'No'}**")
         st.write(f"Environment variable detected: **{'Yes' if env_present else 'No'}**")
@@ -1668,7 +1665,7 @@ with st.sidebar:
             )
 
             if stats.get("failover"):
-                st.warning("NewsData.io reported a quota or request limit.")
+                st.warning("NewsAPI reported a quota or request limit.")
 
         for err in errors:
             st.markdown(
