@@ -27,19 +27,21 @@ import news_providers as npv
 
 # Internal repository uses NewsAPI. Keep the credential server-side.
 # Configure NEWSAPI_KEY or NEWS_API_KEY in Streamlit Secrets/environment.
-def get_newsapi_key():
-    for name in ("NEWSAPI_KEY", "NEWS_API_KEY"):
+NEWSDATA_API_KEY_HARDCODED = "pub_cb85f4550d47494e98426daa602dd2bf"
+
+def get_newdata_api_key():
+    for name in ("NEWSDATA_API_KEY", "NEWSDATA_KEY"):
         value = os.environ.get(name, "").strip()
         if value:
             return value
     try:
-        for name in ("NEWSAPI_KEY", "NEWS_API_KEY"):
+        for name in ("NEWSDATA_API_KEY", "NEWSDATA_KEY"):
             value = str(st.secrets.get(name, "")).strip()
             if value:
                 return value
     except Exception:
         pass
-    return ""
+    return NEWSDATA_API_KEY_HARDCODED.strip()
 
 
 
@@ -1054,8 +1056,8 @@ def _lookup_secret(*names):
 
 
 def get_api_keys():
-    """Return the server-side NewsAPI credential."""
-    return {"newsapi": get_newsapi_key()}
+    """Return the configured NewsData.io credential."""
+    return {"newsdata": get_newdata_api_key()}
 
 def format_relative_time(value):
     """Format an article timestamp for the newsroom cards."""
@@ -1114,10 +1116,10 @@ def calculate_audit_relevance(title, description):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_news(api_key, lookback_days, min_relevance, fuzzy_threshold, selected_categories):
-    """Fetch, classify and filter the NewsAPI briefing."""
+    """Fetch, classify and filter the NewsData.io briefing."""
     categories = tuple(selected_categories)
     raw, errors, stats = npv.fetch_all(
-        {"newsapi": api_key},
+        {"newsdata": api_key},
         lookback_days=lookback_days,
         categories=list(categories),
         fuzzy_threshold=fuzzy_threshold,
@@ -1568,7 +1570,7 @@ if ("news_loaded" not in st.session_state) or (
 ):
     with st.spinner("Compiling the audit intelligence briefing..."):
         articles, errors, stats = load_news(
-            api_keys["newsapi"],
+            api_keys["newsdata"],
             lookback_days,
             min_relevance,
             fuzzy_threshold,
@@ -1600,18 +1602,7 @@ if st.session_state.get("active_view") not in (None, "All News"):
         ]
 
 if not api_keys.get("newsdata"):
-    secrets_available, env_present, named_secret_present, secret_keys = secret_diagnostics()
-    st.error("NewsAPI key is not reaching this running Streamlit instance.")
-    with st.expander("🔧 Secret diagnostics", expanded=True):
-        st.write(f"Streamlit Secrets available: **{'Yes' if secrets_available else 'No'}**")
-        st.write(f"Environment variable detected: **{'Yes' if env_present else 'No'}**")
-        st.write(f"NEWSDATA_API_KEY found in Secrets: **{'Yes' if named_secret_present else 'No'}**")
-        if secrets_available:
-            st.write("Secret names visible to the app:", ", ".join(secret_keys) or "none")
-        st.caption(
-            "The API key value itself is never displayed. A root-level secret named "
-            "NEWSDATA_API_KEY should appear above."
-        )
+    st.error("NewsData.io API key is not configured.")
     st.stop()
 
 
