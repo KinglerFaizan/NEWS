@@ -11,6 +11,7 @@ variables, Streamlit secrets, or the in-page fields.
 """
 
 import os
+import math
 import re
 from html import escape
 from collections import Counter
@@ -19,14 +20,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from textwrap import dedent
 
 import pandas as pd
-import numpy as np
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
 import news_providers as npv
-from sklearn.feature_extraction.text import HashingVectorizer
-from sklearn.linear_model import SGDClassifier
 
 # NewsData.io credential.
 # Intentionally embedded here at the user's request.
@@ -87,37 +85,27 @@ def secret_diagnostics():
 # PERSONAL NEWS LEARNING MODEL
 # ---------------------------------------------------------
 
-def _article_learning_text(article):
-    return " ".join(
+def _article_learning_tokens(article):
+    """Tokenize an article using only the Python standard library."""
+    text = " ".join(
         str(article.get(key) or "")
         for key in ("title", "description", "category", "source")
-    ).strip()
+    ).lower()
+    return re.findall(r"[a-z0-9]{2,}", text)
 
 
 def init_personal_news_model():
-    """Create one online learner per browser session."""
-    if "news_vectorizer" not in st.session_state:
-        st.session_state.news_vectorizer = HashingVectorizer(
-            n_features=2**16,
-            alternate_sign=False,
-            lowercase=True,
-            ngram_range=(1, 2),
-            norm="l2",
-        )
-        st.session_state.news_model = SGDClassifier(
-            loss="log_loss",
-            alpha=0.0005,
-            learning_rate="constant",
-            eta0=0.03,
-            random_state=42,
-        )
-        st.session_state.news_model_trained = False
+    """Create a tiny online Naive-Bayes-style learner per browser session."""
+    if "news_token_counts" not in st.session_state:
+        st.session_state.news_token_counts = {0: {}, 1: {}}
+        st.session_state.news_class_counts = {0: 0, 1: 0}
+        st.session_state.news_total_tokens = {0: 0, 1: 0}
         st.session_state.news_feedback = {}
         st.session_state.news_feedback_count = 0
 
 
 def record_news_feedback(article, label):
-    """Immediately train the online classifier from one user signal."""
+    """Immediately update the learner from one Like / Not-for-me signal."""
     init_personal_news_model()
 
     url = str(article.get("url") or "")
@@ -125,47 +113,69 @@ def record_news_feedback(article, label):
         return
 
     previous = st.session_state.news_feedback.get(url)
+    label = int(label)
 
-    # Avoid repeatedly training on the same unchanged click.
+    # Do not train repeatedly when the user clicks the same signal again.
     if previous == label:
         return
 
-    text = _article_learning_text(article)
-    X = st.session_state.news_vectorizer.transform([text])
-    y = np.array([int(label)], dtype=np.int64)
+    tokens = _article_learning_tokens(article)
+    token_counts = st.session_state.news_token_counts[label]
 
-    if not st.session_state.news_model_trained:
-        st.session_state.news_model.partial_fit(
-            X,
-            y,
-            classes=np.array([0, 1], dtype=np.int64),
+    # If the user changes their mind, remove the old example first.
+    if previous in (0, 1):
+        old_counts = st.session_state.news_token_counts[previous]
+        st.session_state.news_class_counts[previous] = max(
+            0, st.session_state.news_class_counts[previous] - 1
         )
-        st.session_state.news_model_trained = True
-    else:
-        st.session_state.news_model.partial_fit(X, y)
+        for token in tokens:
+            old_counts[token] = max(0, old_counts.get(token, 0) - 1)
+            st.session_state.news_total_tokens[previous] = max(
+                0, st.session_state.news_total_tokens[previous] - 1
+            )
 
-    st.session_state.news_feedback[url] = int(label)
+    st.session_state.news_class_counts[label] += 1
+    for token in tokens:
+        token_counts[token] = token_counts.get(token, 0) + 1
+        st.session_state.news_total_tokens[label] += 1
+
+    st.session_state.news_feedback[url] = label
     st.session_state.news_feedback_count = len(st.session_state.news_feedback)
 
 
 def get_personal_preference_score(article):
-    """Return 0..1 predicted user-interest probability."""
+    """Return a smoothed 0..1 learned-interest probability."""
     init_personal_news_model()
 
-    if not st.session_state.news_model_trained:
+    if not any(st.session_state.news_class_counts.values()):
         return 0.5
 
-    text = _article_learning_text(article)
-    X = st.session_state.news_vectorizer.transform([text])
+    tokens = _article_learning_tokens(article)
+    class_counts = st.session_state.news_class_counts
+    total_examples = max(1, class_counts[0] + class_counts[1])
+    token_counts = st.session_state.news_token_counts
+    total_tokens = st.session_state.news_total_tokens
 
-    try:
-        return float(st.session_state.news_model.predict_proba(X)[0, 1])
-    except Exception:
-        return 0.5
+    # Laplace-smoothed token likelihood with a small prior.
+    vocabulary = set(token_counts[0]) | set(token_counts[1])
+    vocab_size = max(1, len(vocabulary))
+    log_scores = {}
+
+    for label in (0, 1):
+        prior = (class_counts[label] + 1.0) / (total_examples + 2.0)
+        denominator = total_tokens[label] + vocab_size
+        score = math.log(prior)
+        for token in tokens:
+            probability = (token_counts[label].get(token, 0) + 1.0) / denominator
+            score += math.log(probability)
+        log_scores[label] = score
+
+    margin = max(-12.0, min(12.0, log_scores[1] - log_scores[0]))
+    return 1.0 / (1.0 + math.exp(-margin))
 
 
 def personalize_news(rows):
-    """Blend audit relevance with learned user preference."""
+    """Blend audit relevance with the lightweight learned preference model."""
     if not rows:
         return []
 
@@ -660,18 +670,93 @@ st.markdown("""
         letter-spacing:.8px; font-weight:700;
     }
 
-    /* Sidebar polish */
+    /* Sidebar — compact news-reader navigation */
     section[data-testid="stSidebar"] {
         background:#FFFFFF !important;
         border-right:1px solid #E5E7EB;
     }
-    section[data-testid="stSidebar"] > div { padding-top:1.1rem; }
-    section[data-testid="stSidebar"] .stButton > button {
-        border-radius:9px; min-height:42px;
-        box-shadow:0 5px 14px rgba(37,99,235,.16);
+    section[data-testid="stSidebar"] > div {
+        padding:0.8rem 0.65rem 1.2rem;
     }
-    section[data-testid="stSidebar"] [data-testid="stExpander"] {
-        margin-top:4px;
+    section[data-testid="stSidebar"] .stButton {
+        margin:0 !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button {
+        min-height:39px;
+        height:39px;
+        border-radius:9px;
+        border:1px solid transparent !important;
+        background:transparent !important;
+        color:#596579 !important;
+        box-shadow:none !important;
+        text-align:left !important;
+        justify-content:flex-start !important;
+        padding:0 11px !important;
+        font-size:12px !important;
+        font-weight:600 !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button:hover {
+        background:#F4F7FC !important;
+        color:#2563EB !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button * {
+        color:inherit !important;
+        -webkit-text-fill-color:currentColor !important;
+    }
+    section[data-testid="stSidebar"] .sidebar-active > button {
+        background:#EAF1FF !important;
+        color:#2563EB !important;
+        font-weight:800 !important;
+    }
+    section[data-testid="stSidebar"] .sidebar-refresh > button {
+        background:#2563EB !important;
+        color:#fff !important;
+        box-shadow:0 5px 14px rgba(37,99,235,.20) !important;
+    }
+    section[data-testid="stSidebar"] .sidebar-refresh > button:hover {
+        background:#1D4ED8 !important;
+        color:#fff !important;
+    }
+    .sidebar-brand {
+        display:flex;align-items:center;gap:9px;
+        padding:6px 7px 14px;border-bottom:1px solid #EEF1F5;
+        margin-bottom:8px;
+    }
+    .sidebar-brand-icon {
+        width:30px;height:30px;border-radius:9px;background:#2563EB;
+        color:#fff;display:flex;align-items:center;justify-content:center;
+        font-size:14px;box-shadow:0 5px 12px rgba(37,99,235,.20);
+    }
+    .sidebar-brand-title {font-size:13px;font-weight:850;color:#0B1220;}
+    .sidebar-brand-sub {font-size:9px;color:#8A94A6;margin-top:2px;}
+    .sidebar-section-label {
+        font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+        color:#8A94A6;padding:12px 9px 5px;
+    }
+    .sidebar-live-card {
+        padding:11px 9px 12px;border-top:1px solid #EEF1F5;border-bottom:1px solid #EEF1F5;
+        margin:7px 0 9px;
+    }
+    .sidebar-live-kicker {
+        display:flex;align-items:center;gap:6px;font-size:9px;font-weight:800;
+        letter-spacing:1px;color:#8A94A6;text-transform:uppercase;margin-bottom:8px;
+    }
+    .sidebar-live-dot {width:7px;height:7px;border-radius:50%;background:#16A34A;}
+    .sidebar-provider-row {display:flex;align-items:center;justify-content:space-between;}
+    .sidebar-provider-name {font-size:12px;font-weight:800;color:#273247;}
+    .sidebar-active-pill {
+        padding:4px 9px;border-radius:999px;background:#DDF7E8;color:#159447;
+        font-size:9px;font-weight:800;
+    }
+    .sidebar-stamp {font-size:9px;color:#8993A5;margin-top:6px;line-height:1.4;}
+    .sidebar-quick-title {
+        font-size:9px;font-weight:800;letter-spacing:1px;color:#8A94A6;
+        text-transform:uppercase;padding:9px 9px 5px;
+    }
+    .sidebar-divider {height:1px;background:#EEF1F5;margin:7px 4px;}
+    .sidebar-learning {
+        padding:9px;border:1px solid #DBEAFE;background:#F3F7FF;border-radius:9px;
+        color:#31558F;font-size:9.5px;line-height:1.4;margin:7px 2px;
     }
 
     /* ---------------- Featured Analysis hero ---------------- */
@@ -745,6 +830,12 @@ st.markdown("""
     .brief-stat-number { font-size:19px; font-weight:900; line-height:1; }
     .brief-stat-label { margin-top:5px; font-size:9px; text-transform:uppercase;
         letter-spacing:.7px; color:rgba(255,255,255,.58); font-weight:700; }
+
+    .category-filter-status {
+        display:flex;align-items:center;gap:8px;margin:-3px 0 14px;
+        font-size:9px;color:#8A94A6;letter-spacing:1px;text-transform:uppercase;
+    }
+    .category-filter-status b {color:#2563EB;font-size:10px;letter-spacing:.4px;}
 
     .category-section { margin: 0 0 28px 0; }
     .category-heading {
@@ -1163,7 +1254,7 @@ def load_news(api_key, lookback_days, min_relevance, fuzzy_threshold, selected_c
         lookback_days=lookback_days,
         categories=list(categories),
         fuzzy_threshold=fuzzy_threshold,
-        max_workers=3,
+        max_workers=4,
     )
 
     articles = []
@@ -1463,49 +1554,68 @@ init_personal_news_model()
 api_keys = get_api_keys()
 
 with st.sidebar:
-    st.markdown("""
-    <div style="padding:4px 2px 14px 2px;border-bottom:1px solid #E5E7EB;margin-bottom:14px;">
-        <div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:#2563EB;text-transform:uppercase;">
-            Audit Intelligence
-        </div>
-        <div style="font-size:20px;font-weight:850;color:#0B1220;margin-top:3px;">
-            Control Center
-        </div>
-        <div style="font-size:11.5px;color:#6B7280;margin-top:4px;line-height:1.45;">
-            News controls, feed diagnostics and briefing export.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    active_view = st.session_state.get("active_view", "All News")
 
     st.markdown(
-        f'<div class="learning-status"><b>🧠 Personal News Learning</b><br>'
-        f'Trained from <b>{st.session_state.get("news_feedback_count", 0)}</b> feedback signals. '
-        f'Likes raise similar stories; dislikes lower them.</div>',
+        """
+        <div class="sidebar-brand">
+            <div class="sidebar-brand-icon">⌂</div>
+            <div>
+                <div class="sidebar-brand-title">News Intelligence</div>
+                <div class="sidebar-brand-sub">Audit &amp; Banking Briefing</div>
+            </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
-    hard_refresh = st.button(
-        "⟲  Refresh All Data",
+    nav_items = [
+        ("⌂", "All News", "All News"),
+        ("▦", "Categories", "All News"),
+        ("♧", "Global Banks", "Global Banks"),
+        ("♡", "Watchlist", "Watchlist"),
+        ("▱", "Saved", "Saved"),
+        ("⇧", "Export", "Export"),
+        ("⚙", "Diagnostics", "Diagnostics"),
+    ]
+
+    for icon, label, target in nav_items:
+        if st.button(
+            f"{icon}   {label}",
+            key=f"sidebar_nav_{label.lower().replace(' ', '_')}",
+            use_container_width=True,
+        ):
+            st.session_state.active_view = target
+            active_view = target
+            st.rerun()
+
+    st.markdown(
+        f"""
+        <div class="sidebar-live-card">
+            <div class="sidebar-live-kicker"><span class="sidebar-live-dot"></span> LIVE DATA</div>
+            <div class="sidebar-provider-row">
+                <span class="sidebar-provider-name">NewsData.io</span>
+                <span class="sidebar-active-pill">Active</span>
+            </div>
+            <div class="sidebar-stamp">
+                Last updated<br>{escape(str(st.session_state.get("last_refresh", "Not loaded yet")))}
+            </div>
+        </div>
+        <div class="sidebar-section-label">Quick Controls</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    refresh_clicked = st.button(
+        "⟳  Refresh All Data",
         use_container_width=True,
         key="refresh_all",
     )
+    if refresh_clicked:
+        hard_refresh = True
 
     st.markdown(
-        '<div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;'
-        'color:#6B7280;margin:16px 0 7px;">Data Source</div>',
-        unsafe_allow_html=True,
-    )
-
-    if api_keys.get("newsdata"):
-        st.success("NewsData.io connected")
-    else:
-        st.error("NewsData.io key is not configured")
-
-    st.divider()
-
-    st.markdown(
-        '<div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;'
-        'color:#6B7280;margin-bottom:8px;">Feed Controls</div>',
+        '<div class="sidebar-quick-title">Filters &amp; Settings</div>',
         unsafe_allow_html=True,
     )
 
@@ -1514,6 +1624,7 @@ with st.sidebar:
         min_value=1,
         max_value=30,
         value=7,
+        label_visibility="collapsed",
         help="Controls the requested news lookback window.",
     )
 
@@ -1523,6 +1634,7 @@ with st.sidebar:
         max_value=40,
         value=0,
         step=5,
+        label_visibility="collapsed",
         help="Raise this to keep only higher-signal stories.",
     )
 
@@ -1530,14 +1642,18 @@ with st.sidebar:
         "Duplicate Removal",
         options=["Loose", "Balanced", "Aggressive"],
         value="Balanced",
+        label_visibility="collapsed",
         help="Controls how aggressively similar headlines are merged.",
     )
 
-    selected_categories = st.multiselect(
-        "Active Categories",
-        options=list(CATEGORIES.keys()),
-        default=list(CATEGORIES.keys()),
-        format_func=lambda c: CATEGORY_DISPLAY.get(c, c),
+    # Keep all four categories available to the main newsroom navigation.
+    selected_categories = list(CATEGORIES.keys())
+
+    st.markdown(
+        f'<div class="sidebar-learning"><b>🧠 Personal learning</b><br>'
+        f'{st.session_state.get("news_feedback_count", 0)} feedback signals. '
+        f'Likes and dislikes continuously tune this session\'s feed.</div>',
+        unsafe_allow_html=True,
     )
 
     fuzzy_threshold = {
@@ -1545,6 +1661,7 @@ with st.sidebar:
         "Balanced": 0.72,
         "Aggressive": 0.58,
     }[dedup_mode]
+
 
 if hard_refresh:
     load_news.clear()
@@ -1592,6 +1709,14 @@ filtered = (
     [a for a in articles if a["category"] in selected_categories]
     if selected_categories else []
 )
+
+# The main category buttons are a display filter, not an ingestion filter.
+if st.session_state.get("active_view") not in (None, "All News"):
+    if st.session_state.active_view in CATEGORIES:
+        filtered = [
+            a for a in filtered
+            if a.get("category") == st.session_state.active_view
+        ]
 
 if not api_keys.get("newsdata"):
     secrets_available, env_present, named_secret_present, secret_keys = secret_diagnostics()
@@ -1719,6 +1844,44 @@ with st.sidebar:
 
 
 # ---------------------------------------------------------
+
+# Main newsroom category switcher. This changes the visible feed without
+# triggering a new API request because the fetched dataset remains cached.
+if "active_view" not in st.session_state:
+    st.session_state.active_view = "All News"
+
+view_options = [
+    ("All News", "All News"),
+    ("Transformation", "Transformation"),
+    ("Regulation", "Regulation"),
+    ("People", "People"),
+    ("Global Banks", "Global Banks"),
+]
+
+st.markdown(
+    '<div class="feed-section-title" style="margin-top:0;">'
+    '<span>News Feed</span><span>Browse by intelligence stream</span></div>',
+    unsafe_allow_html=True,
+)
+
+nav_cols = st.columns(len(view_options), gap="small")
+for col, (key, label) in zip(nav_cols, view_options):
+    with col:
+        if st.button(
+            label,
+            key=f"main_category_{key.lower().replace(' ', '_')}",
+            use_container_width=True,
+        ):
+            st.session_state.active_view = key
+            st.rerun()
+
+st.markdown(
+    '<div class="category-filter-status">'
+    '<span>ACTIVE STREAM</span><b>' + escape(st.session_state.active_view) + '</b>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
 # 10. NEWS-FIRST LANDING PAGE
 # ---------------------------------------------------------
 
@@ -2061,7 +2224,12 @@ else:
     )
 
     featured_url = filtered[0].get("url")
-    for category in selected_categories:
+    if st.session_state.get("active_view") in CATEGORIES:
+        categories_to_render = [st.session_state.active_view]
+    else:
+        categories_to_render = selected_categories
+
+    for category in categories_to_render:
         category_rows = [
             a for a in filtered
             if a["category"] == category and a.get("url") != featured_url
