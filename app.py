@@ -1651,7 +1651,7 @@ def render_top_stories(rows, rotation_seconds=5):
             image = f'<img src="{fallback}" alt="">'
 
         slides.append(f"""
-<div class="top-story-slide" data-index="{idx}">
+<div class="slide" data-index="{idx}">
   <a href="{url}" target="_blank" rel="noopener noreferrer" class="top-story-image-wrap">{image}</a>
   <div class="top-story-body">
     <div class="top-story-number">{idx}</div>
@@ -1729,7 +1729,7 @@ html,body{{margin:0;padding:0;background:transparent;font-family:Inter,Arial,san
 </body>
 </html>
 """
-    components.html(html, height=315, scrolling=False)
+    components.html(html, height=430, scrolling=False)
 
 
 
