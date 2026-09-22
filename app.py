@@ -115,6 +115,19 @@ st.markdown("""
 
     #MainMenu, header[data-testid="stHeader"] { background: transparent; }
 
+    /* Pull the entire application upward and reclaim Streamlit's default top whitespace. */
+    [data-testid="stAppViewContainer"] .main .block-container {
+        padding-top: 1.15rem !important;
+        padding-bottom: 2rem !important;
+    }
+    [data-testid="stAppViewContainer"] .main {
+        padding-top: 0 !important;
+    }
+    header[data-testid="stHeader"] {
+        height: 2.6rem !important;
+        min-height: 2.6rem !important;
+    }
+
     /* ---------------- Top navigation ---------------- */
     .topnav {
         display: flex;
