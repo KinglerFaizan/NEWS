@@ -86,7 +86,7 @@ st.set_page_config(
     page_title="Audit Intelligence | Global Banking Briefing",
     page_icon="📡",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 st.markdown("""
@@ -384,6 +384,102 @@ st.markdown("""
     div[data-baseweb="tag"] span { color: var(--accent-blue) !important; }
     div[data-baseweb="tag"] svg { fill: var(--accent-blue) !important; }
 
+    /* ---------------- News-first newsroom layout ---------------- */
+    .news-masthead {
+        display:flex; justify-content:space-between; align-items:flex-end; gap:20px;
+        padding:8px 2px 18px; margin-bottom:16px;
+        border-bottom:1px solid var(--border);
+    }
+    .news-kicker {
+        display:flex; align-items:center; gap:8px;
+        color:var(--accent-blue); font-size:10px; font-weight:850;
+        letter-spacing:1.5px; text-transform:uppercase; margin-bottom:6px;
+    }
+    .news-kicker .live-dot { width:6px; height:6px; box-shadow:none; animation:none; }
+    .news-title {
+        font-size:30px; font-weight:900; color:#0B1220;
+        letter-spacing:-1px; line-height:1.05;
+    }
+    .news-subtitle {
+        font-size:12.5px; color:var(--text-secondary);
+        margin-top:7px; max-width:760px;
+    }
+    .news-metrics { display:flex; gap:8px; flex-shrink:0; }
+    .news-metrics div {
+        min-width:72px; padding:9px 12px; text-align:center;
+        border:1px solid var(--border); border-radius:10px; background:#fff;
+    }
+    .news-metrics b { display:block; font-size:18px; color:#0B1220; line-height:1; }
+    .news-metrics span {
+        display:block; margin-top:4px; font-size:8.5px; font-weight:800;
+        letter-spacing:.7px; text-transform:uppercase; color:var(--text-muted);
+    }
+
+    .featured-news-card {
+        display:grid; grid-template-columns:42% 58%;
+        background:#fff; border:1px solid var(--border); border-radius:16px;
+        overflow:hidden; margin-bottom:22px;
+        box-shadow:0 5px 18px rgba(11,18,32,.06);
+    }
+    .featured-image-wrap {
+        display:block; min-height:280px; background:#EEF2F7; overflow:hidden;
+    }
+    .featured-image {
+        width:100%; height:100%; min-height:280px; display:block;
+        object-fit:cover; transition:transform .35s ease;
+    }
+    .featured-image-wrap:hover .featured-image { transform:scale(1.025); }
+    .featured-news-body {
+        display:flex; flex-direction:column; justify-content:center;
+        padding:28px 30px;
+    }
+    .featured-news-label {
+        font-size:9.5px; font-weight:850; letter-spacing:1px;
+        text-transform:uppercase; margin-bottom:10px;
+    }
+    .featured-news-title {
+        color:#0B1220; text-decoration:none;
+        font-size:25px; line-height:1.18; font-weight:900;
+        letter-spacing:-.6px;
+    }
+    .featured-news-title:hover { color:var(--accent-blue); }
+    .featured-news-desc {
+        color:var(--text-secondary); font-size:13px; line-height:1.55;
+        margin-top:11px; display:-webkit-box; -webkit-line-clamp:4;
+        -webkit-box-orient:vertical; overflow:hidden;
+    }
+    .featured-news-meta {
+        display:flex; justify-content:space-between; gap:12px;
+        padding-top:17px; margin-top:18px; border-top:1px solid #F1F5F9;
+        color:var(--text-muted); font-size:10.5px; font-weight:650;
+    }
+    .feed-section-title {
+        display:flex; justify-content:space-between; align-items:center;
+        margin:4px 0 12px; padding-bottom:8px;
+        border-bottom:1px solid var(--border);
+    }
+    .feed-section-title span:first-child {
+        font-size:16px; font-weight:850; color:#0B1220;
+    }
+    .feed-section-title span:last-child {
+        font-size:10px; color:var(--text-muted); text-transform:uppercase;
+        letter-spacing:.8px; font-weight:700;
+    }
+
+    /* Sidebar polish */
+    section[data-testid="stSidebar"] {
+        background:#FFFFFF !important;
+        border-right:1px solid #E5E7EB;
+    }
+    section[data-testid="stSidebar"] > div { padding-top:1.1rem; }
+    section[data-testid="stSidebar"] .stButton > button {
+        border-radius:9px; min-height:42px;
+        box-shadow:0 5px 14px rgba(37,99,235,.16);
+    }
+    section[data-testid="stSidebar"] [data-testid="stExpander"] {
+        margin-top:4px;
+    }
+
     /* ---------------- Featured Analysis hero ---------------- */
     .featured-hero {
         position: relative;
@@ -490,7 +586,7 @@ st.markdown("""
     }
     .category-card:last-child:nth-child(odd) { grid-column:1 / -1; }
     .category-card-image-wrap {
-        position:relative; width:100%; height:170px; overflow:hidden; background:#EEF2F7;
+        position:relative; width:100%; height:100%; min-height:180px; overflow:hidden; background:#EEF2F7;
     }
     .category-card-image {
         width:100%; height:100%; display:block; object-fit:cover;
@@ -502,7 +598,7 @@ st.markdown("""
         background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(0,0,0,.20));
         pointer-events:none;
     }
-    .category-card-body { padding:14px 15px 13px; display:flex; flex-direction:column; min-height:174px; }
+    .category-card-body { padding:16px 18px 14px; display:flex; flex-direction:column; min-height:180px; }
     .category-card-meta { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
     .badge {
         display:inline-block; color:#fff; font-size:9.5px; font-weight:800;
@@ -1099,24 +1195,87 @@ st.markdown(f"""
 
 
 # ---------------------------------------------------------
-# 7. ACTION BAR — one button refreshes BOTH news and markets
+# 7. SIDEBAR CONTROL CENTER
 # ---------------------------------------------------------
 
 api_keys = get_api_keys()
 
-act_l, act_r = st.columns([1, 4])
+with st.sidebar:
+    st.markdown("""
+    <div style="padding:4px 2px 14px 2px;border-bottom:1px solid #E5E7EB;margin-bottom:14px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:#2563EB;text-transform:uppercase;">
+            Audit Intelligence
+        </div>
+        <div style="font-size:20px;font-weight:850;color:#0B1220;margin-top:3px;">
+            Control Center
+        </div>
+        <div style="font-size:11.5px;color:#6B7280;margin-top:4px;line-height:1.45;">
+            News controls, feed diagnostics and briefing export.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-with act_l:
-    hard_refresh = st.button("⟲  Refresh All Data", use_container_width=True, key="refresh_all")
+    hard_refresh = st.button(
+        "⟲  Refresh All Data",
+        use_container_width=True,
+        key="refresh_all",
+    )
 
-with act_r:
-    last_run = st.session_state.get("last_refresh", "not yet loaded this session")
-    active_now = [npv.PROVIDERS[p]["label"] for p, k in api_keys.items() if k]
-    src_txt = ", ".join(active_now) if active_now else "no provider keys yet"
     st.markdown(
-        f'<div class="action-caption">{src_txt} · last pulled: {last_run}</div>',
+        '<div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;'
+        'color:#6B7280;margin:16px 0 7px;">Data Source</div>',
         unsafe_allow_html=True,
     )
+
+    if api_keys.get("newsdata"):
+        st.success("NewsData.io connected")
+    else:
+        st.error("NewsData.io key is not configured")
+
+    st.divider()
+
+    st.markdown(
+        '<div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;'
+        'color:#6B7280;margin-bottom:8px;">Feed Controls</div>',
+        unsafe_allow_html=True,
+    )
+
+    lookback_days = st.slider(
+        "Lookback Window",
+        min_value=1,
+        max_value=30,
+        value=7,
+        help="Controls the requested news lookback window.",
+    )
+
+    min_relevance = st.slider(
+        "Minimum Audit Relevance",
+        min_value=0,
+        max_value=40,
+        value=0,
+        step=5,
+        help="Raise this to keep only higher-signal stories.",
+    )
+
+    dedup_mode = st.select_slider(
+        "Duplicate Removal",
+        options=["Loose", "Balanced", "Aggressive"],
+        value="Balanced",
+        help="Controls how aggressively similar headlines are merged.",
+    )
+
+    selected_categories = st.multiselect(
+        "Active Categories",
+        options=list(CATEGORIES.keys()),
+        default=list(CATEGORIES.keys()),
+        format_func=lambda c: CATEGORY_DISPLAY.get(c, c),
+    )
+
+    fuzzy_threshold = {
+        "Loose": 0.85,
+        "Balanced": 0.72,
+        "Aggressive": 0.58,
+    }[dedup_mode]
 
 if hard_refresh:
     load_news.clear()
@@ -1125,72 +1284,21 @@ if hard_refresh:
 
 
 # ---------------------------------------------------------
-# 8. DATA CONTROLS
-# ---------------------------------------------------------
-
-with st.expander("⚙️  Data Sources, Filters & Controls", expanded=False):
-    st.markdown(
-        '<div style="font-size:12.5px;font-weight:700;color:#0B1220;margin-bottom:2px;">'
-        'News source'
-        '</div>'
-        '<div style="font-size:11.5px;color:#6B7280;margin-bottom:8px;">'
-        'NewsData.io is the sole news provider. The API credential is stored server-side '
-        'and is never displayed or accepted in the UI.'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-    if api_keys["newsdata"]:
-        st.success("NewsData.io connected")
-    else:
-        st.warning("NewsData.io API key is not configured on the server.")
-
-    st.divider()
-    ctrl_a, ctrl_b, ctrl_c = st.columns(3)
-    with ctrl_a:
-        lookback_days = st.slider("Lookback Window (Days)", min_value=1, max_value=30, value=7)
-    with ctrl_b:
-        min_relevance = st.slider(
-            "Minimum Audit Relevance", min_value=0, max_value=40, value=0, step=5,
-            help="Lower this to widen the feed; raise it to keep only high-signal stories.",
-        )
-    with ctrl_c:
-        dedup_mode = st.select_slider(
-            "Duplicate Removal", options=["Loose", "Balanced", "Aggressive"],
-            value="Balanced",
-            help="Controls how aggressively similar headlines are merged.",
-        )
-    fuzzy_threshold = {"Loose": 0.85, "Balanced": 0.72, "Aggressive": 0.58}[dedup_mode]
-    selected_categories = st.multiselect(
-        "Active Categories", options=list(CATEGORIES.keys()),
-        default=list(CATEGORIES.keys()),
-        format_func=lambda c: CATEGORY_DISPLAY.get(c, c),
-    )
-
-if not api_keys.get("newsdata"):
-    secrets_available, env_present, named_secret_present, secret_keys = secret_diagnostics()
-    st.error("NewsData.io key is not reaching this running Streamlit instance.")
-    with st.expander("🔧 Secret diagnostics", expanded=True):
-        st.write(f"Streamlit Secrets available: **{'Yes' if secrets_available else 'No'}**")
-        st.write(f"Environment variable detected: **{'Yes' if env_present else 'No'}**")
-        st.write(f"NEWSDATA_API_KEY found in Secrets: **{'Yes' if named_secret_present else 'No'}**")
-        if secrets_available:
-            st.write("Secret names visible to the app:", ", ".join(secret_keys) or "none")
-        st.caption(
-            "The API key value itself is never displayed. A root-level secret named "
-            "NEWSDATA_API_KEY should appear above."
-        )
-    st.stop()
-
-
-# ---------------------------------------------------------
-# 9. DATA INGESTION & FILTERING
+# 8. DATA INGESTION & FILTERING
 # ---------------------------------------------------------
 
 active_keys = tuple(sorted((p, bool(k)) for p, k in api_keys.items()))
-params_key = (lookback_days, min_relevance, fuzzy_threshold,
-              tuple(sorted(selected_categories)), active_keys)
+params_key = (
+    lookback_days,
+    min_relevance,
+    fuzzy_threshold,
+    tuple(sorted(selected_categories)),
+    active_keys,
+)
 
-if ("news_loaded" not in st.session_state) or (st.session_state.get("params_key") != params_key):
+if ("news_loaded" not in st.session_state) or (
+    st.session_state.get("params_key") != params_key
+):
     with st.spinner("Compiling the audit intelligence briefing..."):
         articles, errors, stats = load_news(
             api_keys["newsdata"],
@@ -1211,107 +1319,220 @@ articles = st.session_state.get("news", [])
 errors = st.session_state.get("news_errors", [])
 stats = st.session_state.get("news_stats", {})
 
-filtered = [a for a in articles if a["category"] in selected_categories] if selected_categories else []
+filtered = (
+    [a for a in articles if a["category"] in selected_categories]
+    if selected_categories else []
+)
 
-with st.expander("🔎 Ingestion Diagnostics", expanded=False):
-    if stats:
-        pp = stats.get("per_provider", {})
-        exhausted = set(stats.get("exhausted", []))
-        rows = ""
+if not api_keys.get("newsdata"):
+    secrets_available, env_present, named_secret_present, secret_keys = secret_diagnostics()
+    st.error("NewsData.io key is not reaching this running Streamlit instance.")
+    with st.expander("🔧 Secret diagnostics", expanded=True):
+        st.write(f"Streamlit Secrets available: **{'Yes' if secrets_available else 'No'}**")
+        st.write(f"Environment variable detected: **{'Yes' if env_present else 'No'}**")
+        st.write(f"NEWSDATA_API_KEY found in Secrets: **{'Yes' if named_secret_present else 'No'}**")
+        if secrets_available:
+            st.write("Secret names visible to the app:", ", ".join(secret_keys) or "none")
+        st.caption(
+            "The API key value itself is never displayed. A root-level secret named "
+            "NEWSDATA_API_KEY should appear above."
+        )
+    st.stop()
 
-        for pid, meta in npv.PROVIDERS.items():
-            role = "active"
-            s = pp.get(pid, {})
 
-            if not api_keys.get(pid):
-                state, color = "not configured", "#9CA3AF"
-            elif pid in exhausted:
-                state, color = "quota reached", "#DC2626"
-            elif s.get("used"):
-                state, color = "active", "#16A34A"
-            else:
-                state, color = "idle (standby)", "#6B7280"
+# ---------------------------------------------------------
+# 9. SIDEBAR DIAGNOSTICS & EXECUTIVE PANELS
+# ---------------------------------------------------------
 
-            rows += (
-                f'<tr>'
-                f'<td style="padding:5px 14px 5px 0;font-weight:600;">{meta["label"]}</td>'
-                f'<td style="padding:5px 14px 5px 0;color:#6B7280;">{role}</td>'
-                f'<td style="padding:5px 14px 5px 0;">{s.get("requests",0)} req</td>'
-                f'<td style="padding:5px 14px 5px 0;">{s.get("articles",0)} articles</td>'
-                f'<td style="color:{color};font-weight:600;">{state}</td>'
-                f'</tr>'
+with st.sidebar:
+    with st.expander("🔎 Ingestion Diagnostics", expanded=False):
+        if stats:
+            pp = stats.get("per_provider", {})
+            exhausted = set(stats.get("exhausted", []))
+            rows = ""
+
+            for pid, meta in npv.PROVIDERS.items():
+                s = pp.get(pid, {})
+
+                if not api_keys.get(pid):
+                    state, color = "not configured", "#9CA3AF"
+                elif pid in exhausted:
+                    state, color = "quota reached", "#DC2626"
+                elif s.get("used"):
+                    state, color = "active", "#16A34A"
+                else:
+                    state, color = "idle", "#6B7280"
+
+                rows += (
+                    f'<tr>'
+                    f'<td style="padding:5px 8px 5px 0;font-weight:600;">{meta["label"]}</td>'
+                    f'<td style="padding:5px 8px 5px 0;">{s.get("requests",0)} req</td>'
+                    f'<td style="padding:5px 8px 5px 0;">{s.get("articles",0)} articles</td>'
+                    f'<td style="color:{color};font-weight:600;">{state}</td>'
+                    f'</tr>'
+                )
+
+            d = stats.get("dedup", {})
+            st.markdown(
+                f"""
+                <table style="width:100%;font-size:11px;color:#111827;border-collapse:collapse;">
+                    {rows}
+                </table>
+                <div style="font-size:11px;color:#4B5563;line-height:1.8;margin-top:8px;">
+                    <b>{stats.get('raw',0)}</b> raw ·
+                    <b>{stats.get('unique',0)}</b> unique ·
+                    <b>{stats.get('kept',0)}</b> retained<br>
+                    URL dupes <b>{d.get('by_url',0)}</b> ·
+                    title dupes <b>{d.get('by_title',0)}</b> ·
+                    fuzzy dupes <b>{d.get('by_fuzzy',0)}</b>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
-        d = stats.get("dedup", {})
+            if stats.get("failover"):
+                st.warning("NewsData.io reported a quota or request limit.")
+
+        for err in errors:
+            st.markdown(
+                f"<div style='font-size:11px;color:#B45309;margin-top:5px;'>• {escape(str(err))}</div>",
+                unsafe_allow_html=True,
+            )
+
+    st.markdown(
+        '<div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;'
+        'color:#6B7280;margin:16px 0 8px;">Feed Pulse</div>',
+        unsafe_allow_html=True,
+    )
+
+    today_count = (
+        sum(1 for a in filtered if format_relative_time(a["publishedAt"]) == "Today")
+        if filtered else 0
+    )
+    unique_sources = len(set(a["source"] for a in filtered)) if filtered else 0
+
+    st.markdown(
+        f"""
+        <div class="side-panel" style="padding:12px 14px;">
+            <div class="pulse-row"><span>Total Stories</span><span class="pulse-value">{len(filtered)}</span></div>
+            <div class="pulse-row"><span>Published Today</span><span class="pulse-value">{today_count}</span></div>
+            <div class="pulse-row"><span>Unique Sources</span><span class="pulse-value">{unique_sources}</span></div>
+            <div class="pulse-row"><span>Last Pull</span><span class="pulse-value" style="font-size:10px;">{escape(str(st.session_state.get("last_refresh", "not yet")))}</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("📊 Risk & Priority Signals", expanded=False):
+        render_priority_alerts(filtered, limit=5)
+        render_risk_radar(filtered)
+        render_source_panel(filtered)
+
+    with st.expander("📈 Market Snapshot", expanded=False):
+        render_market_panel()
+
+    if filtered:
         st.markdown(
-            f"""
-            <table style="font-size:12.5px;color:#111827;border-collapse:collapse;margin-bottom:10px;">
-            {rows}
-            </table>
-            <div style="font-size:12.5px; color:#111827; line-height:1.9;">
-            <b>{stats.get('raw',0)}</b> raw articles ·
-            removed <b>{d.get('by_url',0)}</b> same-link, <b>{d.get('by_title',0)}</b> same-headline,
-            <b>{d.get('by_fuzzy',0)}</b> near-duplicate ·
-            <b>{stats.get('unique',0)}</b> unique stories ·
-            <b>{stats.get('dropped_low_relevance',0)}</b> below relevance floor ·
-            <b>{stats.get('kept',0)}</b> retained
-            </div>
-            """,
+            '<div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;'
+            'color:#6B7280;margin:16px 0 8px;">Export</div>',
             unsafe_allow_html=True,
         )
-
-        if stats.get("failover"):
-            st.warning(
-                "NewsData.io reported a quota or request limit for this run.",
-                icon="⚠️",
-            )
-
-    for err in errors:
-        st.markdown(f"<div style='font-size:12px; color:#B45309;'>• {err}</div>", unsafe_allow_html=True)
-
-
-# ---------------------------------------------------------
-# 10. PAGE TITLE
-# ---------------------------------------------------------
-
-st.markdown(f"""
-<div class="briefing-hero">
-    <div class="briefing-kicker"><span class="briefing-kicker-dot"></span> Live Audit Intelligence</div>
-    <div class="briefing-title">Global Banking Risk &amp; Controls Briefing</div>
-    <div class="briefing-subtitle">Fresh intelligence across transformation, regulation, people and global banking — organized for rapid executive review.</div>
-    <div class="briefing-stats">
-        <div class="brief-stat"><div class="brief-stat-number">{len(filtered)}</div><div class="brief-stat-label">Stories</div></div>
-        <div class="brief-stat"><div class="brief-stat-number">{len(set(a["source"] for a in filtered)) if filtered else 0}</div><div class="brief-stat-label">Sources</div></div>
-        <div class="brief-stat"><div class="brief-stat-number">4</div><div class="brief-stat-label">Themes</div></div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+        df_export = pd.DataFrame(filtered)
+        csv = df_export.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="Download Briefing CSV",
+            data=csv,
+            file_name=f"audit_intel_briefing_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="download_csv_sidebar",
+        )
 
 
 # ---------------------------------------------------------
+# 10. NEWS-FIRST LANDING PAGE
+# ---------------------------------------------------------
+
+if filtered:
+    st.markdown(
+        f"""
+        <div class="news-masthead">
+            <div>
+                <div class="news-kicker"><span class="live-dot"></span> LIVE BANKING NEWS</div>
+                <div class="news-title">Latest Audit Intelligence</div>
+                <div class="news-subtitle">
+                    Global banking stories across transformation, regulation, people and major banks.
+                    Updated {escape(str(st.session_state.get("last_refresh", "just now")))}.
+                </div>
+            </div>
+            <div class="news-metrics">
+                <div><b>{len(filtered)}</b><span>stories</span></div>
+                <div><b>{len(set(a["source"] for a in filtered))}</b><span>sources</span></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        """
+        <div class="news-masthead">
+            <div>
+                <div class="news-kicker"><span class="live-dot"></span> LIVE BANKING NEWS</div>
+                <div class="news-title">Latest Audit Intelligence</div>
+                <div class="news-subtitle">No stories matched the current filters.</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # 11. RENDER HELPERS
 # ---------------------------------------------------------
 
 def render_featured(article):
-    color = CATEGORY_COLORS.get(article["category"], "#374151")
+    color = CATEGORY_COLORS.get(article["category"], "#2563EB")
     label = CATEGORY_DISPLAY.get(article["category"], article["category"])
     rel_time = format_relative_time(article["publishedAt"])
+    title = escape(str(article.get("title") or "Untitled story"))
+    description = escape(
+        str(article.get("description") or "Independent institutional briefing coverage.")
+    )
+    source = escape(str(article.get("source") or "Unknown source"))
+    url = escape(str(article.get("url") or "#"), quote=True)
+    image_url = escape(str(article.get("image_url") or ""), quote=True)
+    fallback = placeholder_data_uri(color)
 
-    if article["image_url"]:
-        bg = f'linear-gradient(180deg, rgba(17,24,39,0) 35%, rgba(17,24,39,0.88) 100%), url(\'{article["image_url"]}\')'
+    if image_url:
+        image = (
+            f'<img class="featured-image" src="{image_url}" alt="" '
+            f'onerror="this.onerror=null;this.src=\'{fallback}\';" />'
+        )
     else:
-        bg = 'linear-gradient(135deg, #1E3A8A, #2563EB)'
+        image = f'<img class="featured-image" src="{fallback}" alt="" />'
 
-    st.markdown(f"""
-    <div class="featured-hero" style="background-image: {bg};">
-        <div class="featured-badge" style="background: {color};">{label}</div>
-        <div class="featured-text">
-            <div class="featured-title">{article['title']}</div>
-            <div class="featured-meta">By {article['source']} &nbsp;·&nbsp; {rel_time}</div>
-        </div>
-        <a href="{article['url']}" target="_blank" class="featured-link-overlay"></a>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <article class="featured-news-card">
+            <a href="{url}" target="_blank" rel="noopener noreferrer" class="featured-image-wrap">
+                {image}
+            </a>
+            <div class="featured-news-body">
+                <div class="featured-news-label" style="color:{color};">{escape(label)} · FEATURED</div>
+                <a href="{url}" target="_blank" rel="noopener noreferrer" class="featured-news-title">
+                    {title}
+                </a>
+                <div class="featured-news-desc">{description}</div>
+                <div class="featured-news-meta">
+                    <span>{source}</span>
+                    <span>{rel_time}</span>
+                </div>
+            </div>
+        </article>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_category_grid(category, rows):
@@ -1383,79 +1604,45 @@ def render_category_grid(category, rows):
 
 
 # ---------------------------------------------------------
-# 12. MAIN LAYOUT
+# 12. MAIN NEWS FEED
 # ---------------------------------------------------------
-# The feed is intentionally category-first: no tabs and no long single-column
-# stream. Each theme gets its own section and stories are displayed two-up.
+# News is the primary surface. Controls and diagnostics live in the sidebar.
 
-col_main, col_side = st.columns([2.3, 1], gap="large")
-
-with col_main:
-    if not filtered:
-        st.markdown("""
+if not filtered:
+    st.markdown(
+        """
         <div class="empty-state-panel">
             <div style="font-size:18px;font-weight:800;color:#111827;">No briefing stories found</div>
             <div style="font-size:13.5px;color:#4B5563;margin-top:6px;">
-                Try expanding the lookback window or lowering the relevance floor above.
+                Open the sidebar and broaden the lookback window, lower the relevance floor,
+                or enable additional categories.
             </div>
         </div>
-        """, unsafe_allow_html=True)
-    else:
-        # Preserve the four editorial categories and never mix their stories.
-        # This makes the landing page immediately scannable.
-        for category in selected_categories:
-            category_rows = [a for a in filtered if a["category"] == category]
-            category_rows.sort(key=lambda x: x.get("publishedAt", ""), reverse=True)
-            render_category_grid(category, category_rows)
+        """,
+        unsafe_allow_html=True,
+    )
+else:
+    render_featured(filtered[0])
 
-with col_side:
-    render_market_panel()
-    render_priority_alerts(filtered)
-    render_risk_radar(filtered)
-    render_source_panel(filtered)
+    st.markdown(
+        '<div class="feed-section-title">'
+        '<span>Latest Stories</span>'
+        '<span>Chronological newsroom feed</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
-    active_categories = ", ".join(CATEGORY_DISPLAY.get(c, c) for c in selected_categories) or "None selected"
-    st.markdown(f"""
-    <div class="side-panel">
-        <div class="side-panel-title">⚙️ Active Filters</div>
-        <div class="filter-row"><span>Categories</span><span class="filter-value">{active_categories}</span></div>
-        <div class="filter-row"><span>Lookback</span><span class="filter-value">Last {lookback_days}d</span></div>
-        <div class="filter-row"><span>Relevance floor</span><span class="filter-value">{min_relevance}</span></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if filtered:
-        today_count = sum(1 for a in filtered if format_relative_time(a["publishedAt"]) == "Today")
-        unique_sources = len(set(a["source"] for a in filtered))
-    else:
-        today_count, unique_sources = 0, 0
-
-    st.markdown(f"""
-    <div class="side-panel">
-        <div class="side-panel-title">📊 Feed Pulse</div>
-        <div class="pulse-row"><span>Total Stories</span><span class="pulse-value">{len(filtered)}</span></div>
-        <div class="pulse-row"><span>Published Today</span><span class="pulse-value">{today_count}</span></div>
-        <div class="pulse-row"><span>Unique Sources</span><span class="pulse-value">{unique_sources}</span></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="cta-panel">
-        <div class="cta-title">Audit Intelligence Brief</div>
-        <div class="cta-desc">Export this briefing as a CSV for Audit Committee and Chief Risk Officer distribution.</div>
-    </div>
-    """, unsafe_allow_html=True)
-    if filtered:
-        df_export = pd.DataFrame(filtered)
-        csv = df_export.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download Briefing CSV",
-            data=csv,
-            file_name=f"audit_intel_briefing_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="download_csv_sidebar",
+    featured_url = filtered[0].get("url")
+    for category in selected_categories:
+        category_rows = [
+            a for a in filtered
+            if a["category"] == category and a.get("url") != featured_url
+        ]
+        category_rows.sort(
+            key=lambda x: x.get("publishedAt", ""),
+            reverse=True,
         )
+        render_category_grid(category, category_rows)
 
 
 # 13. FOOTER
