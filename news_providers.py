@@ -51,6 +51,8 @@ QUERIES = {
     ],
 }
 
+CATEGORY_NAMES = list(QUERIES.keys())
+
 QUOTA_MARKERS = (
     "quota", "rate limit", "ratelimited", "too many requests",
     "exhausted", "limit reached", "limit exceeded", "apikeyexhausted", "429",
